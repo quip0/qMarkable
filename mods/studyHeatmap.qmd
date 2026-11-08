@@ -501,9 +501,9 @@ SLOT qmHomeWidgets
                         id: qmChart
                         visible: qmHeat.selTotal > 0
                         width: parent.width
-                        height: 210
+                        height: 220
                         readonly property int axisH: 32
-                        readonly property int capH: 30
+                        readonly property int capH: 40
                         readonly property int plotTop: capH
                         readonly property int plotH: height - axisH - plotTop
                         readonly property real slot: width / 24
@@ -512,15 +512,23 @@ SLOT qmHomeWidgets
                             for (var i = 0; i < qmHeat.selHours.length; i++) m = Math.max(m, qmHeat.selHours[i]);
                             return Math.max(m, 60);
                         }
+                        readonly property int peakHour: {
+                            var best = 0, m = -1;
+                            for (var i = 0; i < qmHeat.selHours.length; i++)
+                                if (qmHeat.selHours[i] > m) { m = qmHeat.selHours[i]; best = i; }
+                            return best;
+                        }
 
+                        // caption: what the bars mean, or the tapped hour
                         Text {
-                            visible: qmHeat.selHour >= 0
-                            x: Math.max(0, Math.min(qmChart.width - width, qmHeat.selHour * qmChart.slot + qmChart.slot / 2 - width / 2))
+                            x: 0
                             y: 0
-                            text: qmHeat.selHour < 0 ? "" : qmHeat.pad(qmHeat.selHour) + ":00  " + qmHeat.fmt(qmHeat.selHours[qmHeat.selHour] || 0)
+                            text: qmHeat.selHour < 0
+                                  ? "minutes per hour \u00B7 peak " + qmHeat.pad(qmChart.peakHour) + ":00 (" + qmHeat.fmt(qmHeat.selHours[qmChart.peakHour] || 0) + ")"
+                                  : qmHeat.pad(qmHeat.selHour) + ":00\u2013" + qmHeat.pad((qmHeat.selHour + 1) % 24) + ":00 \u00B7 " + qmHeat.fmt(qmHeat.selHours[qmHeat.selHour] || 0)
                             font.family: qmHome.mono
                             font.pixelSize: 22
-                            color: "black"
+                            color: qmHeat.selHour < 0 ? "#8c8c8c" : "black"
                         }
                         Rectangle {
                             x: 0
