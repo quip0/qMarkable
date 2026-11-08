@@ -7,6 +7,7 @@ blocks=blocks.replace('file:///run/qmarkable/current-doc','file://'+data+'/curre
 import re
 blocks=re.sub(r'Document\.FileType\.Notebook','1',blocks)
 blocks=re.sub(r'Document\.FileType\.Pdf','2',blocks)
+blocks=re.sub(r'Document\.FileType\.Ebook','3',blocks)
 blocks=re.sub(r'BatteryManager\.displayState\s*===\s*BatteryManager\.Normal','root.awake',blocks)
 if openDetail:
     blocks=blocks.replace('property  bool detailOpen: false','property  bool detailOpen: true')

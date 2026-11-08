@@ -1,13 +1,13 @@
 VERSION 3.28.0.172
 ; Study heatmap widget for qMarkable Home.
-;  - Today's study time (notebooks + PDFs)
-;  - GitHub-style year grid in 5 gray shades (minutes in notebooks/PDFs)
+;  - Today's study time (notebooks, PDFs, ebooks)
+;  - GitHub-style year grid in 5 gray shades (minutes in documents)
 ;  - One calendar year (Jan–Jun / Jul–Dec); swipe the grid sideways to change year
 ;  - Tap a day to pick it; a collapsible panel shows
 ;    that day's hourly bar chart and per-notebook totals
 ;
 ; Data comes from qmarkable-trackerd (see tracker/). This file tells the
-; tracker when a notebook/PDF is on screen by writing /run/qmarkable/current-doc
+; tracker when a document is on screen by writing /run/qmarkable/current-doc
 ; (tmpfs: RAM only, no flash writes).
 ;
 ; Requires: qmarkableHome.qmd, xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
@@ -21,11 +21,13 @@ AFFECT /qml/device/view/main/MainView.qml
                 visible: false
 
                 // Bindings re-evaluate whenever any input changes. Time counts
-                // only while a notebook or PDF is on screen: awake, not covered
-                // by the homepage, not locked. Ebooks are not counted.
+                // while any document (notebook, PDF, ebook) is on screen: awake,
+                // not covered by the homepage, not locked.
                 readonly property var doc: documentView.item ? documentView.item.document : null
                 readonly property bool counting: !!doc
-                    && (doc.fileType === Document.FileType.Notebook || doc.fileType === Document.FileType.Pdf)
+                    && (doc.fileType === Document.FileType.Notebook
+                        || doc.fileType === Document.FileType.Pdf
+                        || doc.fileType === Document.FileType.Ebook)
                     && BatteryManager.displayState === BatteryManager.Normal
                     && root.qmHomeVisible !== true
                     && !root.passcodeHandler.userLocked
@@ -601,7 +603,7 @@ SLOT qmHomeWidgets
                 visible: qmHeat.loaded && Object.keys(qmHeat.totals).length === 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "no data yet — open a notebook or PDF."
+                text: "no data yet — open a notebook, PDF or ebook."
                 font.family: qmHome.mono
                 font.pixelSize: 24
                 color: "#8c8c8c"
