@@ -1,13 +1,13 @@
 VERSION 3.28.0.172
 ; Study heatmap widget for qMarkable Home.
-;  - Today's notebook time
-;  - GitHub-style year grid in 5 gray shades (minutes spent in notebooks)
+;  - Today's study time (notebooks + PDFs)
+;  - GitHub-style year grid in 5 gray shades (minutes in notebooks/PDFs)
 ;  - One calendar year (Jan–Jun / Jul–Dec); swipe the grid sideways to change year
 ;  - Tap a day to pick it; a collapsible panel shows
 ;    that day's hourly bar chart and per-notebook totals
 ;
 ; Data comes from qmarkable-trackerd (see tracker/). This file tells the
-; tracker when a notebook is on screen by writing /run/qmarkable/current-doc
+; tracker when a notebook/PDF is on screen by writing /run/qmarkable/current-doc
 ; (tmpfs: RAM only, no flash writes).
 ;
 ; Requires: qmarkableHome.qmd, xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
@@ -21,11 +21,11 @@ AFFECT /qml/device/view/main/MainView.qml
                 visible: false
 
                 // Bindings re-evaluate whenever any input changes. Time counts
-                // only while a *notebook* is on screen: awake, not covered by
-                // the homepage, not locked. PDFs and ebooks are not counted.
+                // only while a notebook or PDF is on screen: awake, not covered
+                // by the homepage, not locked. Ebooks are not counted.
                 readonly property var doc: documentView.item ? documentView.item.document : null
                 readonly property bool counting: !!doc
-                    && doc.fileType === Document.FileType.Notebook
+                    && (doc.fileType === Document.FileType.Notebook || doc.fileType === Document.FileType.Pdf)
                     && BatteryManager.displayState === BatteryManager.Normal
                     && root.qmHomeVisible !== true
                     && !root.passcodeHandler.userLocked
@@ -57,7 +57,7 @@ SLOT qmHomeWidgets
         Column {
             id: qmHeat
             width: parent.width
-            spacing: 28
+            spacing: 18
 
             readonly property string dataDir: "file:///home/root/.local/share/qmarkable/"
             readonly property int gap: 5
@@ -88,9 +88,9 @@ SLOT qmHomeWidgets
             readonly property int colsPerBand: Math.max(julCol + 1, weeks - julCol)
             readonly property int cell: Math.max(8, Math.floor((width - labelW - (colsPerBand - 1) * gap) / colsPerBand))
             readonly property int step: cell + gap
-            readonly property int monthH: 40
+            readonly property int monthH: 30
             readonly property int bandH: monthH + 7 * step
-            readonly property int bandGap: 28
+            readonly property int bandGap: 18
 
             property string selKey: ""
             property bool detailOpen: false
@@ -268,13 +268,11 @@ SLOT qmHomeWidgets
                     text: qmHeat.fmt(qmHeat.totals[qmHeat.todayKey] || 0)
                     color: "black"
                     font.family: qmHome.mono
-                    font.pixelSize: 104
+                    font.pixelSize: 84
                     font.bold: true
                     font.letterSpacing: -2
                 }
             }
-
-            Item { width: 1; height: 24 }
 
             // ---- year:  2026            <  > ----
             Item {
@@ -325,7 +323,7 @@ SLOT qmHomeWidgets
                         readonly property int col: Math.floor((Math.round((firstMs - qmHeat.jan1Ms) / qmHeat.dayMsLen) + qmHeat.jan1Dow) / 7)
                         readonly property int band: index < 6 ? 0 : 1
                         x: qmHeat.labelW + (band === 0 ? col : col - qmHeat.julCol) * qmHeat.step
-                        y: band * (qmHeat.bandH + qmHeat.bandGap) + 6
+                        y: band * (qmHeat.bandH + qmHeat.bandGap)
                         text: qmHeat.monthNames[index].toLowerCase()
                         color: "#8c8c8c"
                         font.family: qmHome.mono
@@ -429,14 +427,12 @@ SLOT qmHomeWidgets
                 Text { text: " more"; font.family: qmHome.mono; font.pixelSize: 18; color: "#8c8c8c"; anchors.verticalCenter: parent.verticalCenter }
             }
 
-            Item { width: 1; height: 16 }
-
             // ---- selected day ----
             Column {
                 id: qmDetail
                 visible: qmHeat.selKey !== ""
                 width: parent.width
-                spacing: 28
+                spacing: 20
 
                 Item {
                     width: parent.width
@@ -488,7 +484,7 @@ SLOT qmHomeWidgets
                 Column {
                     visible: qmHeat.detailOpen
                     width: parent.width
-                    spacing: 36
+                    spacing: 20
 
                     Text {
                         visible: qmHeat.selTotal <= 0
@@ -503,9 +499,9 @@ SLOT qmHomeWidgets
                         id: qmChart
                         visible: qmHeat.selTotal > 0
                         width: parent.width
-                        height: 300
-                        readonly property int axisH: 36
-                        readonly property int capH: 36
+                        height: 210
+                        readonly property int axisH: 32
+                        readonly property int capH: 30
                         readonly property int plotTop: capH
                         readonly property int plotH: height - axisH - plotTop
                         readonly property real slot: width / 24
@@ -569,12 +565,12 @@ SLOT qmHomeWidgets
                     Column {
                         visible: qmHeat.selDocs.length > 0
                         width: parent.width
-                        spacing: 14
+                        spacing: 4
                         Repeater {
                             model: qmHeat.selDocs
                             delegate: Item {
                                 width: parent.width
-                                height: 40
+                                height: 38
                                 Text {
                                     anchors.left: parent.left
                                     anchors.right: qmDocTime.left
@@ -605,7 +601,7 @@ SLOT qmHomeWidgets
                 visible: qmHeat.loaded && Object.keys(qmHeat.totals).length === 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "no data yet — open a notebook and write."
+                text: "no data yet — open a notebook or PDF."
                 font.family: qmHome.mono
                 font.pixelSize: 24
                 color: "#8c8c8c"

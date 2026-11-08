@@ -8,13 +8,13 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
 | Part | File | What it does |
 |---|---|---|
 | Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "study →" closes it (to My Files); the calendar button in the My Files dock reopens it. Hides the stock Connect calendar dock button. Other mods add widgets through the `qmHomeWidgets` slot. |
-| Study heatmap | `mods/studyHeatmap.qmd` | Today's notebook time; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or `<` `>`) to change year; tap a day for a collapsible view with an hourly bar chart and per-notebook totals. |
-| Tracker | `tracker/qmarkable-trackerd.c` | Tiny background program that records time spent in notebooks. |
+| Study heatmap | `mods/studyHeatmap.qmd` | Today's study time; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or `<` `>`) to change year; tap a day for a collapsible view with an hourly bar chart and per-notebook totals. |
+| Tracker | `tracker/qmarkable-trackerd.c` | Tiny background program that records time spent in notebooks and PDFs. |
 
 ### How study time is measured
 
-- Time counts while a **notebook** is open on screen: the tablet is awake, the
-  Home page isn't covering it, and it isn't locked. PDFs and ebooks don't count.
+- Time counts while a **notebook or PDF** is open on screen: the tablet is
+  awake, the Home page isn't covering it, and it isn't locked. Ebooks don't count.
 - The UI writes the active notebook (or "none") to `/run/qmarkable/current-doc`
   whenever that changes. This file is RAM-backed, so there are no flash writes.
 - The tracker sleeps on an inotify watch of that file. It wakes only when it
@@ -24,7 +24,7 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
   counted, even if a sleep transition were missed.
 - Data is saved when a session ends and at each checkpoint:
   - `/home/root/.local/share/qmarkable/index.txt`: daily totals
-  - `/home/root/.local/share/qmarkable/days/YYYY-MM-DD.txt`: seconds per hour and per notebook
+  - `/home/root/.local/share/qmarkable/days/YYYY-MM-DD.txt`: seconds per hour and per document
 - Hours and days follow the tablet's system timezone (`/etc/localtime`), and
   the tracker notices when it changes. You can override it with `tz=` in the config.
 

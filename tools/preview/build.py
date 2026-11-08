@@ -5,7 +5,8 @@ blocks=blocks.replace('file:///home/root/.local/share/qmarkable/','file://'+data
 blocks=blocks.replace('file:///run/qmarkable/current-doc','file://'+data+'/current-doc')
 # harness stubs for firmware-only types
 import re
-blocks=re.sub(r'doc\.fileType\s*===\s*Document\.FileType\.Notebook','doc.fileType===1',blocks)
+blocks=re.sub(r'Document\.FileType\.Notebook','1',blocks)
+blocks=re.sub(r'Document\.FileType\.Pdf','2',blocks)
 blocks=re.sub(r'BatteryManager\.displayState\s*===\s*BatteryManager\.Normal','root.awake',blocks)
 if openDetail:
     blocks=blocks.replace('property  bool detailOpen: false','property  bool detailOpen: true')

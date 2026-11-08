@@ -78,7 +78,7 @@ AFFECT /qml/device/view/main/MainView.qml
                             x: qmHome.margin
                             y: qmHome.margin
                             width: qmHome.width - qmHome.margin * 2
-                            spacing: 72
+                            spacing: 40
 
                             Item {
                                 id: qmHomeHeader
