@@ -8,3 +8,5 @@ applied/
 *.png
 __pycache__/
 .DS_Store
+# personal document lists for the one-shot rename tool
+tools/rename/*.json

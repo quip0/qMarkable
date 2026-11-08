@@ -94,6 +94,13 @@ END SLOT
 
 Widgets stack vertically in a scrollable column. `install.sh` installs every `mods/*.qmd`.
 
+## Naming scheme
+
+Documents follow `CODE.type  description`, for example `MAA.T2.pset  Functions`,
+`PHY.book  Tsokos 7e`, `BOOK.math  Strang – Linear Algebra 4e` or
+`PAPER.2026  Mathematics in the Age of AI`. Anything that doesn't fit a category
+is `MISC.*`. `tools/rename/` can batch-rename on the device in a sync-safe way.
+
 ## Developing
 
 `.qmd` files here use plain QML names. qt-resource-rebuilder accepts them

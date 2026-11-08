@@ -1,0 +1,75 @@
+VERSION 3.28.0.172
+; ONE-SHOT batch rename (not part of the normal install: lives in tools/).
+; Reads /home/root/.config/qmarkable/rename.json ([{id, from, to}]) and renames
+; each entry through LibraryController.setVisibleName — the same call the stock
+; Rename dialog uses — so cloud sync treats it as a normal rename.
+; An entry is only renamed if its current name equals "from". Results go to
+; rename.log; rename.done prevents a second run. Remove this file afterwards.
+
+AFFECT /qml/device/view/main/MainView.qml
+    TRAVERSE Background#root > FocusScope#rootItem > FocusScope#viewRoot
+        LOCATE BEFORE Item#connectivityNotifierContainer
+        INSERT {
+            Item {
+                id: qmRename
+                visible: false
+                readonly property string base: "file:///home/root/.config/qmarkable/"
+                property int tries: 0
+
+                function readFile(url) {
+                    try {
+                        var x = new XMLHttpRequest();
+                        x.open("GET", url, false);
+                        x.send();
+                        return x.responseText || "";
+                    } catch (e) {
+                        return "";
+                    }
+                }
+                function writeFile(url, text) {
+                    var x = new XMLHttpRequest();
+                    x.open("PUT", url);
+                    x.send(text);
+                }
+                function run() {
+                    if (readFile(base + "rename.done") !== "") return;
+                    var text = readFile(base + "rename.json");
+                    if (text === "") return;
+                    var list;
+                    try { list = JSON.parse(text); } catch (e) { writeFile(base + "rename.log", "bad json: " + e + "\n"); return; }
+                    var log = [];
+                    var ok = 0, skipped = 0, already = 0;
+                    for (var i = 0; i < list.length; i++) {
+                        var it = list[i];
+                        var entry = Library.entryForId(it.id);
+                        if (!entry) { log.push("MISSING   " + it.id + "  " + it.from); skipped++; continue; }
+                        var cur = "" + entry.visibleName;
+                        if (cur === it.to) { log.push("ALREADY   " + it.to); already++; continue; }
+                        if (cur.trim() !== it.from.trim()) { log.push("MISMATCH  " + it.id + "  now [" + cur + "] expected [" + it.from + "]"); skipped++; continue; }
+                        LibraryController.setVisibleName(entry.id, it.to);
+                        log.push("OK        [" + cur + "] -> [" + it.to + "]");
+                        ok++;
+                    }
+                    log.push("done: " + ok + " renamed, " + already + " already done, " + skipped + " skipped");
+                    writeFile(base + "rename.log", log.join("\n") + "\n");
+                    writeFile(base + "rename.done", new Date().toISOString() + "\n");
+                    console.log("[qmarkable] rename: " + ok + " renamed, " + already + " already, " + skipped + " skipped");
+                }
+
+                // wait until the library has loaded
+                Timer {
+                    interval: 2000
+                    repeat: true
+                    running: true
+                    onTriggered: {
+                        qmRename.tries++;
+                        if (Library.isReady || qmRename.tries > 30) {
+                            running = false;
+                            qmRename.run();
+                        }
+                    }
+                }
+            }
+        }
+    END TRAVERSE
+END AFFECT
