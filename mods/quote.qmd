@@ -1,0 +1,19 @@
+VERSION 3.28.0.172
+; A quote under the date on qMarkable Home, set in EB Garamond italic
+; (ships with the firmware). Edit the text below to change it.
+;
+; Requires: qmarkableHome.qmd, xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
+
+SLOT qmHomeHeader
+    INSERT {
+        Text {
+            id: qmQuote
+            topPadding: 14
+            text: "per aspera ad astra"
+            font.family: "EB Garamond"
+            font.italic: true
+            font.pixelSize: 40
+            color: "#333333"
+        }
+    }
+END SLOT

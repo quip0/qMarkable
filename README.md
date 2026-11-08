@@ -9,6 +9,7 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
 |---|---|---|
 | Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "study →" closes it (to My Files); the calendar button in the My Files dock reopens it. Hides the stock Connect calendar dock button. Other mods add widgets through the `qmHomeWidgets` slot. |
 | Study heatmap | `mods/studyHeatmap.qmd` | Today's study time; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or `<` `>`) to change year; tap a day for a collapsible view with an hourly bar chart and per-notebook totals. |
+| Quote | `mods/quote.qmd` | "per aspera ad astra" under the date, in EB Garamond italic. Edit the text in the file to change it. Fills the `qmHomeHeader` slot. |
 | Tracker | `tracker/qmarkable-trackerd.c` | Tiny background program that records time spent in notebooks, PDFs and ebooks. |
 
 ### How study time is measured

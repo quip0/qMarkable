@@ -20,6 +20,8 @@ Item {
     property bool awake: true
     // device font (copy /usr/share/fonts/ttf/noto/NotoSansMono-*.ttf to fonts/NotoSansMono.ttf)
     FontLoader { source: "fonts/NotoSansMono.ttf" }
+    FontLoader { source: "fonts/EBGaramond.ttf" }
+    FontLoader { source: "fonts/EBGaramond-Italic.ttf" }
     property QtObject passcodeHandler: QtObject { property bool userLocked: false }
     Item {
         id: docStub
