@@ -7,8 +7,8 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
 
 | Part | File | What it does |
 |---|---|---|
-| Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "My files ›" closes it; the calendar button in the My Files dock reopens it. Other mods add widgets through the `qmHomeWidgets` slot. |
-| Study heatmap | `mods/studyHeatmap.qmd` | Today's writing total, a GitHub-style year grid in 5 gray levels, and a collapsible day panel with an hourly bar chart and per-notebook totals. Tap a day, or drag across the grid; ‹ › step by day. |
+| Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "Study ›" closes it (to My Files); the calendar button in the My Files dock reopens it. Hides the stock Connect calendar dock button. Other mods add widgets through the `qmHomeWidgets` slot. |
+| Study heatmap | `mods/studyHeatmap.qmd` | Today's writing total; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or ‹ year ›) to change year; tap a day for a collapsible panel with an hourly bar chart and per-notebook totals (‹ › step by day). |
 | Tracker | `tracker/qmarkable-trackerd.c` | Small background program that measures writing time from the pen digitizer. |
 
 ### How writing time is measured

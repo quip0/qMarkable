@@ -1,7 +1,8 @@
 VERSION 3.28.0.172
 ; qMarkable Home — a full-screen homepage shown when xochitl starts (boot or
-; ~/xovi/start), not after waking from sleep. Reopen it from the dock button
-; (calendar icon) in My Files.
+; ~/xovi/start), not after waking from sleep. "Study" closes it (to My Files);
+; reopen it from the calendar button in the My Files dock. The stock calendar
+; (reMarkable Connect) dock button is hidden.
 ;
 ; Other mods add widgets to the homepage by filling the qmHomeWidgets slot:
 ;
@@ -117,7 +118,7 @@ AFFECT /qml/device/view/main/MainView.qml
                                     Text {
                                         id: qmHomeCloseText
                                         anchors.centerIn: parent
-                                        text: "My files  ›"
+                                        text: "Study  ›"
                                         font.pixelSize: 34
                                         color: qmHomeCloseArea.pressed ? "white" : "black"
                                     }
@@ -164,6 +165,16 @@ AFFECT /qt/qml/xofm/libs/homescreen/qml/CreateMenu.qml
                         p.qmHomeVisible = true;
                 }
             }
+        }
+    END TRAVERSE
+END AFFECT
+
+; Hide the stock calendar (reMarkable Connect integration) dock button so it
+; isn't confused with the Home button.
+AFFECT /qt/qml/xofm/modules/integrations/calendar/qml/CalendarActions.qml
+    TRAVERSE Action#root
+        REPLACE supportedViews WITH {
+            supportedViews: []
         }
     END TRAVERSE
 END AFFECT

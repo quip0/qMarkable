@@ -2,7 +2,8 @@ VERSION 3.28.0.172
 ; Study heatmap widget for qMarkable Home.
 ;  - Today's writing total
 ;  - GitHub-style year grid in 5 gray shades (by active writing minutes)
-;  - Tap or drag across the grid to pick a day; a collapsible panel shows
+;  - One calendar year (Jan–Jun / Jul–Dec); swipe the grid sideways to change year
+;  - Tap a day to pick it; a collapsible panel shows
 ;    that day's hourly bar chart and per-notebook totals
 ;
 ; Data comes from qmarkable-trackerd (see tracker/). This file also tells the
@@ -58,17 +59,9 @@ SLOT qmHomeWidgets
             spacing: 36
 
             readonly property string dataDir: "file:///home/root/.local/share/qmarkable/"
-            readonly property int weeks: 53
             readonly property int gap: 5
             readonly property int labelW: 76
-            // One band of 53 weeks if cells stay legible, otherwise two stacked half-year bands.
-            readonly property int bands: Math.floor((width - labelW - (weeks - 1) * gap) / weeks) >= 28 ? 1 : 2
-            readonly property int weeksPerBand: Math.ceil(weeks / bands)
-            readonly property int cell: Math.max(8, Math.floor((width - labelW - (weeksPerBand - 1) * gap) / weeksPerBand))
-            readonly property int step: cell + gap
-            readonly property int monthH: 44
-            readonly property int bandH: monthH + 7 * step
-            readonly property int bandGap: 28
+            readonly property double dayMsLen: 86400000
             readonly property var shades: ["#ffffff", "#d4d4d4", "#a0a0a0", "#5a5a5a", "#000000"]
             readonly property var monthNames: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
             readonly property var dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
@@ -76,9 +69,27 @@ SLOT qmHomeWidgets
             property var totals: ({})
             property int tzOff: 0
             property double todayMs: 0       // local midnight, as a UTC-epoch ms "local clock" value
-            property double gridStartMs: 0   // first cell (a Sunday)
             property string todayKey: ""
             property bool loaded: false
+
+            // ---- displayed year: Jan–Jun on top, Jul–Dec below ----
+            property int year: 0
+            property int minYear: 0
+            property int maxYear: 0
+            readonly property double jan1Ms: Date.UTC(year, 0, 1)
+            readonly property double jul1Ms: Date.UTC(year, 6, 1)
+            readonly property int jan1Dow: new Date(jan1Ms).getUTCDay()
+            readonly property int daysInYear: Math.round((Date.UTC(year + 1, 0, 1) - jan1Ms) / dayMsLen)
+            readonly property int weeks: Math.ceil((jan1Dow + daysInYear) / 7)
+            // week column that contains 1 July: shown in both halves (each half
+            // only draws its own days), so every band starts/ends on a month edge
+            readonly property int julCol: Math.floor((jan1Dow + Math.round((jul1Ms - jan1Ms) / dayMsLen)) / 7)
+            readonly property int colsPerBand: Math.max(julCol + 1, weeks - julCol)
+            readonly property int cell: Math.max(8, Math.floor((width - labelW - (colsPerBand - 1) * gap) / colsPerBand))
+            readonly property int step: cell + gap
+            readonly property int monthH: 44
+            readonly property int bandH: monthH + 7 * step
+            readonly property int bandGap: 28
 
             property string selKey: ""
             property bool detailOpen: false
@@ -96,6 +107,7 @@ SLOT qmHomeWidgets
                 var p = key.split("-");
                 return Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
             }
+            function yearOf(key) { return parseInt(key.substring(0, 4), 10); }
             function fmt(secs) {
                 var m = Math.round((secs || 0) / 60);
                 if (m < 60) return m + "m";
@@ -113,6 +125,14 @@ SLOT qmHomeWidgets
                 var d = new Date(msOf(key));
                 return dayNames[d.getUTCDay()] + ", " + d.getUTCDate() + " " + monthNames[d.getUTCMonth()] + " " + d.getUTCFullYear();
             }
+            // position of a day (ms) in the two-band layout
+            function cellPos(ms) {
+                var d = Math.round((ms - jan1Ms) / dayMsLen) + jan1Dow;
+                var col = Math.floor(d / 7);
+                var band = ms < jul1Ms ? 0 : 1;
+                return { x: (band === 0 ? col : col - julCol) * step,
+                         y: band * (bandH + bandGap) + monthH + (d % 7) * step };
+            }
 
             function readFile(url, cb) {
                 var x = new XMLHttpRequest();
@@ -127,6 +147,7 @@ SLOT qmHomeWidgets
             function reload() {
                 readFile(dataDir + "index.txt", function(text) {
                     var tot = {};
+                    var first = "";
                     var off = -new Date().getTimezoneOffset();
                     var lines = text.split("\n");
                     for (var i = 0; i < lines.length; i++) {
@@ -137,22 +158,39 @@ SLOT qmHomeWidgets
                             continue;
                         }
                         var parts = line.split(" ");
-                        if (parts.length >= 2 && parts[0].length === 10)
+                        if (parts.length >= 2 && parts[0].length === 10) {
                             tot[parts[0]] = parseInt(parts[1], 10);
+                            if (first === "" || parts[0] < first) first = parts[0];
+                        }
                     }
                     var local = new Date(Date.now() + off * 60000);
                     var mid = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
                     qmHeat.tzOff = off;
                     qmHeat.todayMs = mid;
                     qmHeat.todayKey = keyOf(mid);
-                    qmHeat.gridStartMs = mid - (local.getUTCDay() + 7 * (weeks - 1)) * 86400000;
+                    qmHeat.maxYear = local.getUTCFullYear();
+                    qmHeat.minYear = first === "" ? qmHeat.maxYear : Math.min(yearOf(first), qmHeat.maxYear);
                     qmHeat.totals = tot;
+                    if (qmHeat.year === 0 || qmHeat.year > qmHeat.maxYear)
+                        qmHeat.year = qmHeat.maxYear;
                     qmHeat.loaded = true;
-                    if (qmHeat.selKey === "")
-                        qmHeat.select(qmHeat.todayKey, false);
-                    else
+                    if (qmHeat.selKey === "") {
+                        if (qmHeat.year === qmHeat.maxYear) qmHeat.select(qmHeat.todayKey, false);
+                    } else {
                         qmHeat.loadDay(qmHeat.selKey);
+                    }
                 });
+            }
+
+            function setYear(y) {
+                y = Math.max(minYear, Math.min(maxYear, y));
+                if (y === year) return;
+                year = y;
+                if (selKey !== "" && yearOf(selKey) !== y) {
+                    selKey = "";
+                    detailOpen = false;
+                    if (y === maxYear) select(todayKey, false);
+                }
             }
 
             function loadDay(key) {
@@ -202,9 +240,12 @@ SLOT qmHomeWidgets
             }
             function step(days) {
                 if (selKey === "") return;
-                var ms = msOf(selKey) + days * 86400000;
-                if (ms > todayMs || ms < gridStartMs) return;
-                select(keyOf(ms), false);
+                var ms = msOf(selKey) + days * dayMsLen;
+                if (ms > todayMs) return;
+                var k = keyOf(ms);
+                if (yearOf(k) < minYear) return;
+                if (yearOf(k) !== year) year = yearOf(k);   // follow into the neighbouring year
+                select(k, false);
             }
 
             Connections {
@@ -237,25 +278,59 @@ SLOT qmHomeWidgets
                 }
             }
 
+            // ---- Year header: ‹ 2026 › (swipe the grid sideways too) ----
+            Item {
+                width: parent.width
+                height: 72
+                Rectangle {
+                    id: qmYearPrev
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 72; height: 72; radius: 36
+                    border.width: 2; border.color: "black"
+                    opacity: qmHeat.year > qmHeat.minYear ? 1 : 0.3
+                    color: qmYearPrevArea.pressed ? "black" : "white"
+                    Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 44; color: qmYearPrevArea.pressed ? "white" : "black" }
+                    MouseArea { id: qmYearPrevArea; anchors.fill: parent; anchors.margins: -12; onClicked: qmHeat.setYear(qmHeat.year - 1) }
+                }
+                Text {
+                    anchors.left: qmYearPrev.right
+                    anchors.leftMargin: 28
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: qmHeat.year > 0 ? "" + qmHeat.year : ""
+                    font.pixelSize: 48
+                    font.bold: true
+                    color: "black"
+                    Rectangle {
+                        id: qmYearNext
+                        anchors.left: parent.right
+                        anchors.leftMargin: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 72; height: 72; radius: 36
+                        border.width: 2; border.color: "black"
+                        opacity: qmHeat.year < qmHeat.maxYear ? 1 : 0.3
+                        color: qmYearNextArea.pressed ? "black" : "white"
+                        Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 44; color: qmYearNextArea.pressed ? "white" : "black" }
+                        MouseArea { id: qmYearNextArea; anchors.fill: parent; anchors.margins: -12; onClicked: qmHeat.setYear(qmHeat.year + 1) }
+                    }
+                }
+            }
+
             // ---- Year grid ----
             Item {
                 id: qmGrid
                 width: parent.width
-                height: qmHeat.bands * qmHeat.bandH + (qmHeat.bands - 1) * qmHeat.bandGap
+                height: 2 * qmHeat.bandH + qmHeat.bandGap
 
                 // month labels
                 Repeater {
-                    model: qmHeat.weeks
+                    model: qmHeat.loaded ? 12 : 0
                     delegate: Text {
-                        readonly property double colMs: qmHeat.gridStartMs + index * 7 * 86400000
-                        readonly property int month: new Date(colMs).getUTCMonth()
-                        readonly property bool first: index === 0 || new Date(colMs - 7 * 86400000).getUTCMonth() !== month
-                        readonly property int band: Math.floor(index / qmHeat.weeksPerBand)
-                        readonly property int colInBand: index % qmHeat.weeksPerBand
-                        visible: (first || colInBand === 0) && colInBand < qmHeat.weeksPerBand - 1
-                        x: qmHeat.labelW + colInBand * qmHeat.step
+                        readonly property double firstMs: Date.UTC(qmHeat.year, index, 1)
+                        readonly property int col: Math.floor((Math.round((firstMs - qmHeat.jan1Ms) / qmHeat.dayMsLen) + qmHeat.jan1Dow) / 7)
+                        readonly property int band: index < 6 ? 0 : 1
+                        x: qmHeat.labelW + (band === 0 ? col : col - qmHeat.julCol) * qmHeat.step
                         y: band * (qmHeat.bandH + qmHeat.bandGap)
-                        text: qmHeat.monthNames[month]
+                        text: qmHeat.monthNames[index]
                         color: "#333333"
                         font.pixelSize: 26
                     }
@@ -263,7 +338,7 @@ SLOT qmHomeWidgets
 
                 // weekday labels
                 Repeater {
-                    model: qmHeat.bands * 3
+                    model: 6
                     delegate: Text {
                         readonly property int row: [1, 3, 5][index % 3]
                         readonly property int band: Math.floor(index / 3)
@@ -279,25 +354,26 @@ SLOT qmHomeWidgets
                     id: qmCells
                     x: qmHeat.labelW
                     y: 0
-                    width: qmHeat.weeksPerBand * qmHeat.step
+                    width: qmHeat.colsPerBand * qmHeat.step
                     height: qmGrid.height
 
                     Repeater {
-                        model: qmHeat.loaded ? qmHeat.weeks * 7 : 0
+                        model: qmHeat.loaded ? qmHeat.daysInYear : 0
                         delegate: Rectangle {
-                            readonly property double dayMs: qmHeat.gridStartMs + index * 86400000
+                            readonly property double dayMs: qmHeat.jan1Ms + index * qmHeat.dayMsLen
                             readonly property string key: qmHeat.keyOf(dayMs)
                             readonly property int lvl: qmHeat.level(qmHeat.totals[key])
                             readonly property bool selected: key === qmHeat.selKey
-                            visible: dayMs <= qmHeat.todayMs
-                            readonly property int col: Math.floor(index / 7)
-                            x: (col % qmHeat.weeksPerBand) * qmHeat.step
-                            y: Math.floor(col / qmHeat.weeksPerBand) * (qmHeat.bandH + qmHeat.bandGap) + qmHeat.monthH + (index % 7) * qmHeat.step
+                            readonly property var pos: qmHeat.cellPos(dayMs)
+                            readonly property bool future: dayMs > qmHeat.todayMs
+                            x: pos.x
+                            y: pos.y
                             width: qmHeat.cell
                             height: qmHeat.cell
-                            color: qmHeat.shades[lvl]
-                            border.width: lvl === 0 ? 1 : 0
-                            border.color: "#8c8c8c"
+                            // future days: faint outline only
+                            color: future ? "white" : qmHeat.shades[lvl]
+                            border.width: (future || lvl === 0) ? 1 : 0
+                            border.color: future ? "#d4d4d4" : "#8c8c8c"
 
                             // selection ring drawn outside the cell, readable on any shade
                             Rectangle {
@@ -320,36 +396,38 @@ SLOT qmHomeWidgets
                             }
                         }
                     }
+                }
 
-                    // Tap or drag to pick a day (cells are small for fingers).
-                    MouseArea {
-                        anchors.fill: parent
-                        anchors.margins: -12
-                        preventStealing: true
-                        property string startKey: ""
-                        function keyAt(mx, my) {
-                            var px = mx - 12, py = my - 12;
-                            var bandStride = qmHeat.bandH + qmHeat.bandGap;
-                            var band = Math.max(0, Math.min(qmHeat.bands - 1, Math.floor(py / bandStride)));
-                            var inBand = py - band * bandStride - qmHeat.monthH;
-                            var col = band * qmHeat.weeksPerBand + Math.max(0, Math.min(qmHeat.weeksPerBand - 1, Math.floor(px / qmHeat.step)));
-                            if (col > qmHeat.weeks - 1) return "";
-                            var row = Math.max(0, Math.min(6, Math.floor(inBand / qmHeat.step)));
-                            var ms = qmHeat.gridStartMs + (col * 7 + row) * 86400000;
-                            return ms <= qmHeat.todayMs ? qmHeat.keyOf(ms) : "";
-                        }
-                        onPressed: function(m) { startKey = keyAt(m.x, m.y); }
-                        onPositionChanged: function(m) {
+                // Tap a day to open it; swipe sideways to change year.
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -12
+                    preventStealing: true
+                    property real sx: 0
+                    property real sy: 0
+                    function keyAt(mx, my) {
+                        var px = mx - 12 - qmHeat.labelW, py = my - 12;
+                        if (px < 0) return "";
+                        var stride = qmHeat.bandH + qmHeat.bandGap;
+                        var band = py >= stride ? 1 : 0;
+                        var inBand = py - band * stride - qmHeat.monthH;
+                        if (inBand < 0) return "";
+                        var col = Math.floor(px / qmHeat.step) + (band === 1 ? qmHeat.julCol : 0);
+                        var row = Math.min(6, Math.floor(inBand / qmHeat.step));
+                        var dayIdx = col * 7 + row - qmHeat.jan1Dow;
+                        if (dayIdx < 0 || dayIdx >= qmHeat.daysInYear) return "";
+                        var ms = qmHeat.jan1Ms + dayIdx * qmHeat.dayMsLen;
+                        if ((band === 0) !== (ms < qmHeat.jul1Ms)) return "";  // day belongs to the other half
+                        return ms <= qmHeat.todayMs ? qmHeat.keyOf(ms) : "";
+                    }
+                    onPressed: function(m) { sx = m.x; sy = m.y; }
+                    onReleased: function(m) {
+                        var dx = m.x - sx, dy = m.y - sy;
+                        if (Math.abs(dx) > 100 && Math.abs(dx) > 1.5 * Math.abs(dy)) {
+                            qmHeat.setYear(qmHeat.year + (dx < 0 ? 1 : -1));   // swipe left = next year
+                        } else if (Math.abs(dx) < 30 && Math.abs(dy) < 30) {
                             var k = keyAt(m.x, m.y);
-                            if (k !== "" && k !== qmHeat.selKey) {
-                                qmHeat.select(k, false);
-                                qmHeat.detailOpen = true;
-                                startKey = "";
-                            }
-                        }
-                        onReleased: function(m) {
-                            var k = keyAt(m.x, m.y);
-                            if (k !== "" && k === startKey) qmHeat.select(k, true);
+                            if (k !== "") qmHeat.select(k, true);
                         }
                     }
                 }
