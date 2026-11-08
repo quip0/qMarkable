@@ -19,5 +19,5 @@ ssh "$HOST" 'set -e
 if [ "${PURGE:-}" = "1" ]; then
   ssh "$HOST" 'rm -rf /home/root/.local/share/qmarkable /home/root/.config/qmarkable'
 fi
-ssh "$HOST" '/home/root/xovi/start >/dev/null 2>&1' || true
+ssh "$HOST" 'systemctl reset-failed xochitl.service 2>/dev/null; /home/root/xovi/start >/dev/null 2>&1' || true
 echo "Removed."

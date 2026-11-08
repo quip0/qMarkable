@@ -36,5 +36,7 @@ if [ "${NO_RESTART:-}" = "1" ]; then
   exit 0
 fi
 echo "==> Restarting xovi (xochitl will restart)"
-ssh "$HOST" '/home/root/xovi/start >/dev/null 2>&1; sleep 2; systemctl is-active qmarkable-tracker.service'
+# xochitl may start at most 4 times per 10 minutes; beyond that systemd marks it
+# failed and the firmware reboots. Clear the counter so repeated installs are safe.
+ssh "$HOST" 'systemctl reset-failed xochitl.service 2>/dev/null; /home/root/xovi/start >/dev/null 2>&1; sleep 2; systemctl is-active qmarkable-tracker.service'
 echo "==> Done"
