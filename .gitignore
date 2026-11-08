@@ -1,0 +1,10 @@
+# build output
+tracker/qmarkable-trackerd
+# never commit reMarkable's firmware files or extracted QML
+xochitl
+hashtab
+qml/
+applied/
+*.png
+__pycache__/
+.DS_Store

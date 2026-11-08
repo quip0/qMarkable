@@ -1,0 +1,169 @@
+VERSION 3.28.0.172
+; qMarkable Home — a full-screen homepage shown when xochitl starts (boot or
+; ~/xovi/start), not after waking from sleep. Reopen it from the dock button
+; (calendar icon) in My Files.
+;
+; Other mods add widgets to the homepage by filling the qmHomeWidgets slot:
+;
+;   SLOT qmHomeWidgets
+;       INSERT {
+;           Item { width: parent.width; height: 200 /* ... */ }
+;       }
+;   END SLOT
+;
+; Widgets are stacked in a Column (width: parent.width) inside a Flickable.
+; Inside a widget, `root` is MainView's root and `qmHome` is the page.
+;
+; Requires: xovi + qt-resource-rebuilder. Firmware 3.28.0.172 only.
+
+AFFECT /qml/device/view/main/MainView.qml
+    TRAVERSE Background#root
+        LOCATE BEFORE ALL
+        INSERT {
+            // true at xochitl start-up; sleep/wake never recreates MainView
+            property bool qmHomeVisible: true
+        }
+
+        TRAVERSE FocusScope#rootItem > FocusScope#viewRoot
+            LOCATE BEFORE Item#connectivityNotifierContainer
+            INSERT {
+                Rectangle {
+                    id: qmHome
+                    objectName: "qmHome"
+                    anchors.fill: parent
+                    color: "white"
+                    visible: root.qmHomeVisible && !root.passcodeHandler.userLocked
+
+                    readonly property int margin: Math.round(width * 0.05)
+                    readonly property double startedAt: Date.now()
+
+                    function close() {
+                        root.qmHomeVisible = false;
+                    }
+
+                    // Hide when a document is opened from elsewhere, but not
+                    // when xochitl restores the last document during start-up.
+                    Connections {
+                        target: documentView.item
+                        function onDocumentChanged() {
+                            if (documentView.item && documentView.item.document
+                                    && Date.now() - qmHome.startedAt > 20000) {
+                                root.qmHomeVisible = false;
+                            }
+                        }
+                    }
+
+                    // Swallow touches so nothing underneath reacts.
+                    MouseArea {
+                        anchors.fill: parent
+                    }
+
+                    Flickable {
+                        id: qmHomeFlick
+                        anchors.fill: parent
+                        contentWidth: width
+                        contentHeight: qmHomeColumn.height + qmHome.margin * 2
+                        boundsBehavior: Flickable.StopAtBounds
+                        flickableDirection: Flickable.VerticalFlick
+                        clip: true
+
+                        Column {
+                            id: qmHomeColumn
+                            x: qmHome.margin
+                            y: qmHome.margin
+                            width: qmHome.width - qmHome.margin * 2
+                            spacing: 56
+
+                            Item {
+                                id: qmHomeHeader
+                                width: parent.width
+                                height: 132
+
+                                Column {
+                                    anchors.left: parent.left
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 8
+                                    Text {
+                                        text: "Home"
+                                        color: "black"
+                                        font.pixelSize: 72
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        id: qmHomeDate
+                                        color: "#555555"
+                                        font.pixelSize: 32
+                                        text: Qt.formatDate(new Date(), "dddd, d MMMM yyyy")
+                                        Connections {
+                                            target: qmHome
+                                            function onVisibleChanged() {
+                                                if (qmHome.visible)
+                                                    qmHomeDate.text = Qt.formatDate(new Date(), "dddd, d MMMM yyyy");
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: qmHomeClose
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: qmHomeCloseText.implicitWidth + 64
+                                    height: 88
+                                    radius: height / 2
+                                    color: qmHomeCloseArea.pressed ? "black" : "white"
+                                    border.width: 3
+                                    border.color: "black"
+                                    Text {
+                                        id: qmHomeCloseText
+                                        anchors.centerIn: parent
+                                        text: "My files  ›"
+                                        font.pixelSize: 34
+                                        color: qmHomeCloseArea.pressed ? "white" : "black"
+                                    }
+                                    MouseArea {
+                                        id: qmHomeCloseArea
+                                        anchors.fill: parent
+                                        anchors.margins: -16
+                                        onClicked: qmHome.close()
+                                    }
+                                }
+                            }
+
+                            ~{qmHomeWidgets}~
+                        }
+                    }
+                }
+            }
+        END TRAVERSE
+    END TRAVERSE
+END AFFECT
+
+AFFECT /qt/qml/xofm/libs/homescreen/qml/CreateMenu.qml
+    TRAVERSE Item#root > Rectangle#primaryContainer > RowLayout#primaryLayout
+        LOCATE BEFORE ALL
+        INSERT {
+            Action {
+                id: qmHomeButton
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: true
+                Layout.minimumWidth: height
+
+                currentView: root.view
+                popupOverlay: root.popupOverlay
+                anchorTarget: root
+                supportedViews: ["myfiles", "filter", "notebook-filter"]
+                visible: qmHomeButton.supportedViews.includes(root.view)
+                iconSource: "qrc:/ark/icons/calendar"
+                onActionClicked: {
+                    // MainView owns qmHomeVisible; walk up to it.
+                    var p = root.parent;
+                    while (p && p.qmHomeVisible === undefined)
+                        p = p.parent;
+                    if (p)
+                        p.qmHomeVisible = true;
+                }
+            }
+        }
+    END TRAVERSE
+END AFFECT

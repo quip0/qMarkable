@@ -1,0 +1,590 @@
+VERSION 3.28.0.172
+; Study heatmap widget for qMarkable Home.
+;  - Today's writing total
+;  - GitHub-style year grid in 5 gray shades (by active writing minutes)
+;  - Tap or drag across the grid to pick a day; a collapsible panel shows
+;    that day's hourly bar chart and per-notebook totals
+;
+; Data comes from qmarkable-trackerd (see tracker/). This file also tells the
+; tracker which document is open by writing /run/qmarkable/current-doc
+; (tmpfs: RAM only, no flash writes).
+;
+; Requires: qmarkableHome.qmd, xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
+
+AFFECT /qml/device/view/main/MainView.qml
+    TRAVERSE Background#root > FocusScope#rootItem > FocusScope#viewRoot
+        LOCATE BEFORE Item#connectivityNotifierContainer
+        INSERT {
+            Item {
+                id: qmDocMarker
+                visible: false
+
+                function write(text) {
+                    var x = new XMLHttpRequest();
+                    x.open("PUT", "file:///run/qmarkable/current-doc");
+                    x.send(text);
+                }
+                function update() {
+                    var d = documentView.item ? documentView.item.document : null;
+                    if (d && documentView.item.documentLoaded) {
+                        var name = ("" + (d.visibleName || "")).split("\n").join(" ");
+                        write(d.id + "\n" + name + "\n");
+                    } else {
+                        write("\n"); // "no document"; an empty PUT body creates no file
+                    }
+                }
+
+                Component.onCompleted: {
+                    write("\n");
+                    console.log("[qmarkable] study tracker marker ready");
+                }
+
+                Connections {
+                    target: documentView.item
+                    function onDocumentChanged() { qmDocMarker.update(); }
+                    function onDocumentLoadedChanged() { qmDocMarker.update(); }
+                    function onDocumentClosed() { qmDocMarker.write("\n"); }
+                }
+            }
+        }
+    END TRAVERSE
+END AFFECT
+
+SLOT qmHomeWidgets
+    INSERT {
+        Column {
+            id: qmHeat
+            width: parent.width
+            spacing: 36
+
+            readonly property string dataDir: "file:///home/root/.local/share/qmarkable/"
+            readonly property int weeks: 53
+            readonly property int gap: 5
+            readonly property int labelW: 76
+            // One band of 53 weeks if cells stay legible, otherwise two stacked half-year bands.
+            readonly property int bands: Math.floor((width - labelW - (weeks - 1) * gap) / weeks) >= 28 ? 1 : 2
+            readonly property int weeksPerBand: Math.ceil(weeks / bands)
+            readonly property int cell: Math.max(8, Math.floor((width - labelW - (weeksPerBand - 1) * gap) / weeksPerBand))
+            readonly property int step: cell + gap
+            readonly property int monthH: 44
+            readonly property int bandH: monthH + 7 * step
+            readonly property int bandGap: 28
+            readonly property var shades: ["#ffffff", "#d4d4d4", "#a0a0a0", "#5a5a5a", "#000000"]
+            readonly property var monthNames: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            readonly property var dayNames: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+            property var totals: ({})
+            property int tzOff: 0
+            property double todayMs: 0       // local midnight, as a UTC-epoch ms "local clock" value
+            property double gridStartMs: 0   // first cell (a Sunday)
+            property string todayKey: ""
+            property bool loaded: false
+
+            property string selKey: ""
+            property bool detailOpen: false
+            property var selHours: []
+            property var selDocs: []
+            property int selTotal: 0
+            property int selHour: -1
+
+            function pad(n) { return n < 10 ? "0" + n : "" + n; }
+            function keyOf(ms) {
+                var d = new Date(ms);
+                return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+            }
+            function msOf(key) {
+                var p = key.split("-");
+                return Date.UTC(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+            }
+            function fmt(secs) {
+                var m = Math.round((secs || 0) / 60);
+                if (m < 60) return m + "m";
+                return Math.floor(m / 60) + "h " + pad(m % 60) + "m";
+            }
+            function level(secs) {
+                var m = (secs || 0) / 60;
+                if (m < 1) return 0;
+                if (m < 30) return 1;
+                if (m < 60) return 2;
+                if (m < 120) return 3;
+                return 4;
+            }
+            function longDate(key) {
+                var d = new Date(msOf(key));
+                return dayNames[d.getUTCDay()] + ", " + d.getUTCDate() + " " + monthNames[d.getUTCMonth()] + " " + d.getUTCFullYear();
+            }
+
+            function readFile(url, cb) {
+                var x = new XMLHttpRequest();
+                x.onreadystatechange = function() {
+                    if (x.readyState === XMLHttpRequest.DONE)
+                        cb(x.status === 200 || x.status === 0 ? (x.responseText || "") : "");
+                };
+                x.open("GET", url);
+                x.send();
+            }
+
+            function reload() {
+                readFile(dataDir + "index.txt", function(text) {
+                    var tot = {};
+                    var off = -new Date().getTimezoneOffset();
+                    var lines = text.split("\n");
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i];
+                        if (line.indexOf("#") === 0) {
+                            var at = line.indexOf("tzoff=");
+                            if (at >= 0) off = parseInt(line.substring(at + 6), 10);
+                            continue;
+                        }
+                        var parts = line.split(" ");
+                        if (parts.length >= 2 && parts[0].length === 10)
+                            tot[parts[0]] = parseInt(parts[1], 10);
+                    }
+                    var local = new Date(Date.now() + off * 60000);
+                    var mid = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+                    qmHeat.tzOff = off;
+                    qmHeat.todayMs = mid;
+                    qmHeat.todayKey = keyOf(mid);
+                    qmHeat.gridStartMs = mid - (local.getUTCDay() + 7 * (weeks - 1)) * 86400000;
+                    qmHeat.totals = tot;
+                    qmHeat.loaded = true;
+                    if (qmHeat.selKey === "")
+                        qmHeat.select(qmHeat.todayKey, false);
+                    else
+                        qmHeat.loadDay(qmHeat.selKey);
+                });
+            }
+
+            function loadDay(key) {
+                readFile(dataDir + "days/" + key + ".txt", function(text) {
+                    if (key !== qmHeat.selKey) return;
+                    var hours = [];
+                    for (var h = 0; h < 24; h++) hours.push(0);
+                    var docs = [];
+                    var lines = text.split("\n");
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i];
+                        if (line.indexOf("a ") === 0) {
+                            var v = line.substring(2).split(" ");
+                            for (var j = 0; j < 24 && j < v.length; j++) hours[j] = parseInt(v[j], 10) || 0;
+                        } else if (line.indexOf("d ") === 0) {
+                            var rest = line.substring(2);
+                            var s1 = rest.indexOf(" ");
+                            var s2 = rest.indexOf(" ", s1 + 1);
+                            if (s1 < 0) continue;
+                            var secs = parseInt(s2 < 0 ? rest.substring(s1 + 1) : rest.substring(s1 + 1, s2), 10) || 0;
+                            var name = s2 < 0 ? "(untitled)" : rest.substring(s2 + 1);
+                            if (secs >= 30) docs.push({ name: name, secs: secs });
+                        }
+                    }
+                    docs.sort(function(a, b) { return b.secs - a.secs; });
+                    var total = 0;
+                    for (var k = 0; k < 24; k++) total += hours[k];
+                    qmHeat.selHours = hours;
+                    qmHeat.selDocs = docs;
+                    qmHeat.selTotal = total;
+                });
+            }
+
+            function select(key, toggle) {
+                if (key === "" || msOf(key) > todayMs) return;
+                if (toggle && key === selKey) {
+                    detailOpen = !detailOpen;
+                    return;
+                }
+                selKey = key;
+                selHour = -1;
+                selHours = [];
+                selDocs = [];
+                selTotal = totals[key] || 0;
+                if (toggle) detailOpen = true;
+                loadDay(key);
+            }
+            function step(days) {
+                if (selKey === "") return;
+                var ms = msOf(selKey) + days * 86400000;
+                if (ms > todayMs || ms < gridStartMs) return;
+                select(keyOf(ms), false);
+            }
+
+            Connections {
+                target: qmHome
+                function onVisibleChanged() { if (qmHome.visible) qmHeat.reload(); }
+            }
+            Component.onCompleted: reload()
+
+            // ---- Today's total ----
+            Row {
+                spacing: 24
+                Text {
+                    anchors.baseline: qmTodayValue.baseline
+                    text: "Today"
+                    color: "#555555"
+                    font.pixelSize: 40
+                }
+                Text {
+                    id: qmTodayValue
+                    text: qmHeat.fmt(qmHeat.totals[qmHeat.todayKey] || 0)
+                    color: "black"
+                    font.pixelSize: 88
+                    font.bold: true
+                }
+                Text {
+                    anchors.baseline: qmTodayValue.baseline
+                    text: "of writing"
+                    color: "#555555"
+                    font.pixelSize: 40
+                }
+            }
+
+            // ---- Year grid ----
+            Item {
+                id: qmGrid
+                width: parent.width
+                height: qmHeat.bands * qmHeat.bandH + (qmHeat.bands - 1) * qmHeat.bandGap
+
+                // month labels
+                Repeater {
+                    model: qmHeat.weeks
+                    delegate: Text {
+                        readonly property double colMs: qmHeat.gridStartMs + index * 7 * 86400000
+                        readonly property int month: new Date(colMs).getUTCMonth()
+                        readonly property bool first: index === 0 || new Date(colMs - 7 * 86400000).getUTCMonth() !== month
+                        readonly property int band: Math.floor(index / qmHeat.weeksPerBand)
+                        readonly property int colInBand: index % qmHeat.weeksPerBand
+                        visible: (first || colInBand === 0) && colInBand < qmHeat.weeksPerBand - 1
+                        x: qmHeat.labelW + colInBand * qmHeat.step
+                        y: band * (qmHeat.bandH + qmHeat.bandGap)
+                        text: qmHeat.monthNames[month]
+                        color: "#333333"
+                        font.pixelSize: 26
+                    }
+                }
+
+                // weekday labels
+                Repeater {
+                    model: qmHeat.bands * 3
+                    delegate: Text {
+                        readonly property int row: [1, 3, 5][index % 3]
+                        readonly property int band: Math.floor(index / 3)
+                        x: 0
+                        y: band * (qmHeat.bandH + qmHeat.bandGap) + qmHeat.monthH + row * qmHeat.step + (qmHeat.cell - height) / 2
+                        text: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][row]
+                        color: "#333333"
+                        font.pixelSize: 26
+                    }
+                }
+
+                Item {
+                    id: qmCells
+                    x: qmHeat.labelW
+                    y: 0
+                    width: qmHeat.weeksPerBand * qmHeat.step
+                    height: qmGrid.height
+
+                    Repeater {
+                        model: qmHeat.loaded ? qmHeat.weeks * 7 : 0
+                        delegate: Rectangle {
+                            readonly property double dayMs: qmHeat.gridStartMs + index * 86400000
+                            readonly property string key: qmHeat.keyOf(dayMs)
+                            readonly property int lvl: qmHeat.level(qmHeat.totals[key])
+                            readonly property bool selected: key === qmHeat.selKey
+                            visible: dayMs <= qmHeat.todayMs
+                            readonly property int col: Math.floor(index / 7)
+                            x: (col % qmHeat.weeksPerBand) * qmHeat.step
+                            y: Math.floor(col / qmHeat.weeksPerBand) * (qmHeat.bandH + qmHeat.bandGap) + qmHeat.monthH + (index % 7) * qmHeat.step
+                            width: qmHeat.cell
+                            height: qmHeat.cell
+                            color: qmHeat.shades[lvl]
+                            border.width: lvl === 0 ? 1 : 0
+                            border.color: "#8c8c8c"
+
+                            // selection ring drawn outside the cell, readable on any shade
+                            Rectangle {
+                                visible: parent.selected
+                                anchors.fill: parent
+                                anchors.margins: -Math.ceil(qmHeat.gap / 2) - 2
+                                color: "transparent"
+                                border.width: 4
+                                border.color: "black"
+                                z: 2
+                            }
+                            // today marker: small dot
+                            Rectangle {
+                                visible: parent.key === qmHeat.todayKey && !parent.selected
+                                anchors.centerIn: parent
+                                width: Math.max(4, qmHeat.cell / 3)
+                                height: width
+                                radius: width / 2
+                                color: parent.lvl >= 3 ? "white" : "black"
+                            }
+                        }
+                    }
+
+                    // Tap or drag to pick a day (cells are small for fingers).
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -12
+                        preventStealing: true
+                        property string startKey: ""
+                        function keyAt(mx, my) {
+                            var px = mx - 12, py = my - 12;
+                            var bandStride = qmHeat.bandH + qmHeat.bandGap;
+                            var band = Math.max(0, Math.min(qmHeat.bands - 1, Math.floor(py / bandStride)));
+                            var inBand = py - band * bandStride - qmHeat.monthH;
+                            var col = band * qmHeat.weeksPerBand + Math.max(0, Math.min(qmHeat.weeksPerBand - 1, Math.floor(px / qmHeat.step)));
+                            if (col > qmHeat.weeks - 1) return "";
+                            var row = Math.max(0, Math.min(6, Math.floor(inBand / qmHeat.step)));
+                            var ms = qmHeat.gridStartMs + (col * 7 + row) * 86400000;
+                            return ms <= qmHeat.todayMs ? qmHeat.keyOf(ms) : "";
+                        }
+                        onPressed: function(m) { startKey = keyAt(m.x, m.y); }
+                        onPositionChanged: function(m) {
+                            var k = keyAt(m.x, m.y);
+                            if (k !== "" && k !== qmHeat.selKey) {
+                                qmHeat.select(k, false);
+                                qmHeat.detailOpen = true;
+                                startKey = "";
+                            }
+                        }
+                        onReleased: function(m) {
+                            var k = keyAt(m.x, m.y);
+                            if (k !== "" && k === startKey) qmHeat.select(k, true);
+                        }
+                    }
+                }
+            }
+
+            // ---- Legend ----
+            Row {
+                spacing: 12
+                anchors.right: parent.right
+                Text { text: "Less"; font.pixelSize: 26; color: "#333333"; anchors.verticalCenter: parent.verticalCenter }
+                Repeater {
+                    model: 5
+                    delegate: Rectangle {
+                        width: 30; height: 30
+                        color: qmHeat.shades[index]
+                        border.width: index === 0 ? 1 : 0
+                        border.color: "#8c8c8c"
+                    }
+                }
+                Text { text: "More"; font.pixelSize: 26; color: "#333333"; anchors.verticalCenter: parent.verticalCenter }
+                Text {
+                    text: "   (<30m · 30m–1h · 1–2h · 2h+)"
+                    font.pixelSize: 24
+                    color: "#555555"
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            // ---- Collapsible day detail ----
+            Rectangle {
+                id: qmDetail
+                visible: qmHeat.selKey !== ""
+                width: parent.width
+                height: qmDetailCol.height + 48
+                radius: 20
+                color: "white"
+                border.width: 3
+                border.color: "black"
+
+                Column {
+                    id: qmDetailCol
+                    x: 32
+                    y: 24
+                    width: parent.width - 64
+                    spacing: 28
+
+                    // header: ‹ date · total ›   ▾
+                    Item {
+                        width: parent.width
+                        height: 84
+
+                        Rectangle {
+                            id: qmPrev
+                            width: 84; height: 84; radius: 42
+                            border.width: 2; border.color: "black"
+                            color: qmPrevArea.pressed ? "black" : "white"
+                            Text { anchors.centerIn: parent; text: "‹"; font.pixelSize: 52; color: qmPrevArea.pressed ? "white" : "black" }
+                            MouseArea { id: qmPrevArea; anchors.fill: parent; onClicked: qmHeat.step(-1) }
+                        }
+                        Item {
+                            anchors.left: qmPrev.right
+                            anchors.right: qmNext.left
+                            anchors.leftMargin: 24
+                            anchors.rightMargin: 24
+                            height: parent.height
+                            Column {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 2
+                                Text {
+                                    text: qmHeat.selKey === "" ? "" : qmHeat.longDate(qmHeat.selKey)
+                                    font.pixelSize: 34
+                                    font.bold: true
+                                    color: "black"
+                                }
+                                Text {
+                                    text: qmHeat.fmt(qmHeat.selTotal) + " of writing" + (qmHeat.selKey === qmHeat.todayKey ? " (today)" : "")
+                                    font.pixelSize: 28
+                                    color: "#444444"
+                                }
+                            }
+                            MouseArea { anchors.fill: parent; onClicked: qmHeat.detailOpen = !qmHeat.detailOpen }
+                        }
+                        Rectangle {
+                            id: qmNext
+                            anchors.right: qmToggle.left
+                            anchors.rightMargin: 16
+                            width: 84; height: 84; radius: 42
+                            border.width: 2; border.color: "black"
+                            opacity: qmHeat.selKey === qmHeat.todayKey ? 0.3 : 1
+                            color: qmNextArea.pressed ? "black" : "white"
+                            Text { anchors.centerIn: parent; text: "›"; font.pixelSize: 52; color: qmNextArea.pressed ? "white" : "black" }
+                            MouseArea { id: qmNextArea; anchors.fill: parent; onClicked: qmHeat.step(1) }
+                        }
+                        Rectangle {
+                            id: qmToggle
+                            anchors.right: parent.right
+                            width: 84; height: 84; radius: 42
+                            border.width: 2; border.color: "black"
+                            color: qmToggleArea.pressed ? "black" : "white"
+                            Text {
+                                anchors.centerIn: parent
+                                text: qmHeat.detailOpen ? "▴" : "▾"
+                                font.pixelSize: 40
+                                color: qmToggleArea.pressed ? "white" : "black"
+                            }
+                            MouseArea { id: qmToggleArea; anchors.fill: parent; onClicked: qmHeat.detailOpen = !qmHeat.detailOpen }
+                        }
+                    }
+
+                    // body
+                    Column {
+                        visible: qmHeat.detailOpen
+                        width: parent.width
+                        spacing: 24
+
+                        Text {
+                            visible: qmHeat.selTotal <= 0
+                            text: "No writing recorded on this day."
+                            font.pixelSize: 30
+                            color: "#555555"
+                        }
+
+                        // hourly bar chart
+                        Item {
+                            id: qmChart
+                            visible: qmHeat.selTotal > 0
+                            width: parent.width
+                            height: 360
+                            readonly property int axisH: 44
+                            readonly property int capH: 40
+                            readonly property real slot: width / 24
+                            readonly property int maxSecs: {
+                                var m = 0;
+                                for (var i = 0; i < qmHeat.selHours.length; i++) m = Math.max(m, qmHeat.selHours[i]);
+                                return Math.max(m, 60);
+                            }
+
+                            // caption for tapped hour
+                            Text {
+                                x: 0; y: 0
+                                text: qmHeat.selHour < 0
+                                      ? "Peak hour: " + qmHeat.fmt(qmChart.maxSecs) + " · tap a bar for details"
+                                      : qmHeat.pad(qmHeat.selHour) + ":00–" + qmHeat.pad((qmHeat.selHour + 1) % 24) + ":00 · " + qmHeat.fmt(qmHeat.selHours[qmHeat.selHour] || 0)
+                                font.pixelSize: 28
+                                color: "#333333"
+                            }
+                            // baseline
+                            Rectangle {
+                                x: 0
+                                y: qmChart.height - qmChart.axisH
+                                width: qmChart.width
+                                height: 2
+                                color: "black"
+                            }
+                            Repeater {
+                                model: 24
+                                delegate: Item {
+                                    x: index * qmChart.slot
+                                    y: qmChart.capH + 8
+                                    width: qmChart.slot
+                                    height: qmChart.height - qmChart.axisH - qmChart.capH - 8
+                                    readonly property int secs: qmHeat.selHours.length === 24 ? qmHeat.selHours[index] : 0
+                                    Rectangle {
+                                        anchors.bottom: parent.bottom
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        width: Math.max(4, parent.width - 10)
+                                        height: parent.secs > 0 ? Math.max(4, parent.height * parent.secs / qmChart.maxSecs) : 0
+                                        color: qmHeat.selHour === index || qmHeat.selHour < 0 ? "black" : "#8c8c8c"
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: qmHeat.selHour = (qmHeat.selHour === index ? -1 : index)
+                                    }
+                                }
+                            }
+                            Repeater {
+                                model: [0, 3, 6, 9, 12, 15, 18, 21]
+                                delegate: Text {
+                                    x: modelData * qmChart.slot + (qmChart.slot - width) / 2
+                                    y: qmChart.height - qmChart.axisH + 8
+                                    text: qmHeat.pad(modelData)
+                                    font.pixelSize: 24
+                                    color: "#333333"
+                                }
+                            }
+                        }
+
+                        // per-notebook breakdown
+                        Column {
+                            visible: qmHeat.selDocs.length > 0
+                            width: parent.width
+                            spacing: 14
+                            Text { text: "By notebook"; font.pixelSize: 30; font.bold: true; color: "black" }
+                            Repeater {
+                                model: qmHeat.selDocs
+                                delegate: Item {
+                                    width: parent.width
+                                    height: 52
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: 40
+                                        width: Math.max(4, parent.width * 0.35 * modelData.secs / Math.max(1, qmHeat.selDocs[0].secs))
+                                        color: "#d4d4d4"
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: 12
+                                        width: parent.width - 220
+                                        elide: Text.ElideRight
+                                        text: modelData.name
+                                        font.pixelSize: 30
+                                        color: "black"
+                                    }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.right: parent.right
+                                        text: qmHeat.fmt(modelData.secs)
+                                        font.pixelSize: 30
+                                        color: "black"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Text {
+                visible: qmHeat.loaded && Object.keys(qmHeat.totals).length === 0
+                width: parent.width
+                wrapMode: Text.WordWrap
+                text: "No study time recorded yet. Open a notebook and start writing — time is counted while the pen touches the screen (pauses under 15 s count too)."
+                font.pixelSize: 28
+                color: "#555555"
+            }
+        }
+    }
+END SLOT
