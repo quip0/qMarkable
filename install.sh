@@ -17,17 +17,19 @@ ssh "$HOST" 'grep -q "IMG_VERSION=\"3.28.0.172\"" /etc/os-release || { echo "Fir
              test -f /home/root/xovi/extensions.d/qt-resource-rebuilder.so || { echo "qt-resource-rebuilder not installed" >&2; exit 1; }'
 
 echo "==> Copying files"
-ssh "$HOST" "mkdir -p /home/root/qmarkable /home/root/.config/qmarkable /home/root/xovi/scripts/post-start /home/root/xovi/scripts/post-stock"
+ssh "$HOST" "mkdir -p /home/root/qmarkable /home/root/.config/qmarkable /home/root/xovi/scripts/pre-start /home/root/xovi/scripts/post-start /home/root/xovi/scripts/post-stock"
 scp -q mods/*.qmd "$HOST:$QRR/"
 scp -q tracker/qmarkable-trackerd "$HOST:/home/root/qmarkable/qmarkable-trackerd.new"
+scp -q device/pre-start/qmarkable-timezone.sh "$HOST:/home/root/xovi/scripts/pre-start/qmarkable-timezone.sh"
 scp -q device/post-start/qmarkable.sh "$HOST:/home/root/xovi/scripts/post-start/qmarkable.sh"
 scp -q device/post-stock/qmarkable.sh "$HOST:/home/root/xovi/scripts/post-stock/qmarkable.sh"
 scp -q device/tracker.conf "$HOST:/home/root/qmarkable/tracker.conf.default"
 ssh "$HOST" 'set -e
   cd /home/root/qmarkable
-  chmod 755 qmarkable-trackerd.new /home/root/xovi/scripts/post-start/qmarkable.sh /home/root/xovi/scripts/post-stock/qmarkable.sh
+  chmod 755 qmarkable-trackerd.new /home/root/xovi/scripts/pre-start/qmarkable-timezone.sh /home/root/xovi/scripts/post-start/qmarkable.sh /home/root/xovi/scripts/post-stock/qmarkable.sh
   mv -f qmarkable-trackerd.new qmarkable-trackerd
-  [ -f /home/root/.config/qmarkable/tracker.conf ] || cp tracker.conf.default /home/root/.config/qmarkable/tracker.conf'
+  [ -f /home/root/.config/qmarkable/tracker.conf ] || cp tracker.conf.default /home/root/.config/qmarkable/tracker.conf
+  [ -f /home/root/.config/qmarkable/timezone ] || : > /home/root/.config/qmarkable/timezone'
 
 if [ "${NO_RESTART:-}" = "1" ]; then
   echo "==> Installed. Run ~/xovi/start on the tablet to apply."

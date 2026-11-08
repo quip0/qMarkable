@@ -12,7 +12,8 @@ ssh "$HOST" "rm -f $QMDS"
 ssh "$HOST" 'set -e
   systemctl stop qmarkable-tracker.service 2>/dev/null || true
   systemctl reset-failed qmarkable-tracker.service 2>/dev/null || true
-  rm -f /home/root/xovi/scripts/post-start/qmarkable.sh \
+  rm -f /home/root/xovi/scripts/pre-start/qmarkable-timezone.sh \
+        /home/root/xovi/scripts/post-start/qmarkable.sh \
         /home/root/xovi/scripts/post-stock/qmarkable.sh
   rm -rf /home/root/qmarkable /run/qmarkable'
 if [ "${PURGE:-}" = "1" ]; then

@@ -28,6 +28,14 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
 - Hours and days follow the tablet's system timezone (`/etc/localtime`), and
   the tracker notices when it changes. You can override it with `tz=` in the config.
 
+### Timezone
+
+The firmware has no timezone setting, and `/etc` is rebuilt from RAM on every
+boot, so the tablet defaults to UTC. Put a zone name in
+`~/.config/qmarkable/timezone` (e.g. `Asia/Taipei`). The xovi pre-start hook
+then applies it every time xovi starts, before the UI loads. Leave the file
+empty to keep the system default.
+
 Heatmap levels: none, <30 m, 30 m–1 h, 1–2 h, 2 h+.
 
 ## Install / update
