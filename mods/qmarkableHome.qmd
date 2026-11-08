@@ -9,6 +9,9 @@ VERSION 3.28.0.172
 ;   SLOT qmHomeWidgets
 ;       INSERT {
 ;           Item { width: parent.width; height: 200 /* ... */ }
+;
+; Style: square corners, 2px black rules, font.family: qmHome.mono,
+; section labels like "// 02  NAME" in 22px letter-spaced gray caps.
 ;       }
 ;   END SLOT
 ;
@@ -36,6 +39,8 @@ AFFECT /qml/device/view/main/MainView.qml
                     visible: root.qmHomeVisible && !root.passcodeHandler.userLocked
 
                     readonly property int margin: Math.round(width * 0.05)
+                    // shared style for homepage widgets
+                    readonly property string mono: "Noto Sans Mono"
                     readonly property double startedAt: Date.now()
 
                     function close() {
@@ -73,60 +78,97 @@ AFFECT /qml/device/view/main/MainView.qml
                             x: qmHome.margin
                             y: qmHome.margin
                             width: qmHome.width - qmHome.margin * 2
-                            spacing: 56
+                            spacing: 64
 
-                            Item {
+                            Column {
                                 id: qmHomeHeader
                                 width: parent.width
-                                height: 132
+                                spacing: 16
 
-                                Column {
-                                    anchors.left: parent.left
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 8
-                                    Text {
-                                        text: "Home"
-                                        color: "black"
-                                        font.pixelSize: 72
-                                        font.bold: true
+                                function stamp() {
+                                    var d = new Date();
+                                    var days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+                                    // ISO week number
+                                    var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+                                    var dn = t.getUTCDay() || 7;
+                                    t.setUTCDate(t.getUTCDate() + 4 - dn);
+                                    var wk = Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+                                    return Qt.formatDate(d, "yyyy-MM-dd") + "  " + days[d.getDay()] + "  W" + (wk < 10 ? "0" : "") + wk;
+                                }
+
+                                Item {
+                                    width: parent.width
+                                    height: qmHomeTitle.height
+
+                                    Column {
+                                        id: qmHomeTitle
+                                        anchors.left: parent.left
+                                        spacing: 4
+                                        Text {
+                                            text: "QMARKABLE"
+                                            color: "#555555"
+                                            font.family: qmHome.mono
+                                            font.pixelSize: 22
+                                            font.letterSpacing: 6
+                                        }
+                                        Text {
+                                            text: "~/home"
+                                            color: "black"
+                                            font.family: qmHome.mono
+                                            font.pixelSize: 64
+                                            font.bold: true
+                                        }
                                     }
-                                    Text {
-                                        id: qmHomeDate
-                                        color: "#555555"
-                                        font.pixelSize: 32
-                                        text: Qt.formatDate(new Date(), "dddd, d MMMM yyyy")
-                                        Connections {
-                                            target: qmHome
-                                            function onVisibleChanged() {
-                                                if (qmHome.visible)
-                                                    qmHomeDate.text = Qt.formatDate(new Date(), "dddd, d MMMM yyyy");
-                                            }
+
+                                    Rectangle {
+                                        id: qmHomeClose
+                                        anchors.right: parent.right
+                                        anchors.bottom: parent.bottom
+                                        anchors.bottomMargin: 6
+                                        width: qmHomeCloseText.implicitWidth + 48
+                                        height: 76
+                                        radius: 0
+                                        color: qmHomeCloseArea.pressed ? "black" : "white"
+                                        border.width: 2
+                                        border.color: "black"
+                                        Text {
+                                            id: qmHomeCloseText
+                                            anchors.centerIn: parent
+                                            text: "STUDY →"
+                                            font.family: qmHome.mono
+                                            font.pixelSize: 28
+                                            font.bold: true
+                                            font.letterSpacing: 2
+                                            color: qmHomeCloseArea.pressed ? "white" : "black"
+                                        }
+                                        MouseArea {
+                                            id: qmHomeCloseArea
+                                            anchors.fill: parent
+                                            anchors.margins: -16
+                                            onClicked: qmHome.close()
                                         }
                                     }
                                 }
 
                                 Rectangle {
-                                    id: qmHomeClose
-                                    anchors.right: parent.right
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: qmHomeCloseText.implicitWidth + 64
-                                    height: 88
-                                    radius: height / 2
-                                    color: qmHomeCloseArea.pressed ? "black" : "white"
-                                    border.width: 3
-                                    border.color: "black"
-                                    Text {
-                                        id: qmHomeCloseText
-                                        anchors.centerIn: parent
-                                        text: "Study  ›"
-                                        font.pixelSize: 34
-                                        color: qmHomeCloseArea.pressed ? "white" : "black"
-                                    }
-                                    MouseArea {
-                                        id: qmHomeCloseArea
-                                        anchors.fill: parent
-                                        anchors.margins: -16
-                                        onClicked: qmHome.close()
+                                    width: parent.width
+                                    height: 2
+                                    color: "black"
+                                }
+
+                                Text {
+                                    id: qmHomeDate
+                                    color: "#555555"
+                                    font.family: qmHome.mono
+                                    font.pixelSize: 24
+                                    font.letterSpacing: 1
+                                    text: qmHomeHeader.stamp()
+                                    Connections {
+                                        target: qmHome
+                                        function onVisibleChanged() {
+                                            if (qmHome.visible)
+                                                qmHomeDate.text = qmHomeHeader.stamp();
+                                        }
                                     }
                                 }
                             }

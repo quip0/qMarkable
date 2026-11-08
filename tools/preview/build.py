@@ -11,6 +11,8 @@ Item {
     width: 1404
     height: 1872
     property bool qmHomeVisible: true
+    // device font (copy /usr/share/fonts/ttf/noto/NotoSansMono-*.ttf to fonts/NotoSansMono.ttf)
+    FontLoader { source: "fonts/NotoSansMono.ttf" }
     property QtObject passcodeHandler: QtObject { property bool userLocked: false }
     Item {
         id: docStub
