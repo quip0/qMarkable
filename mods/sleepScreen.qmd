@@ -1,0 +1,185 @@
+VERSION 3.28.0.172
+; qMarkable sleep screen (reMarkable Paper Pure).
+;
+; Draws a quote, the date, today's study time and the last 7 days on top of
+; the stock sleep screen. The stock contact details are kept and stay above
+; this layer: at the bottom with the case open, and in the rotated strip on
+; the right edge when the folio case is closed (so they show through the case).
+;
+; Data comes from qmarkable-trackerd (index.txt), read when the tablet goes to
+; sleep. Edit qmSleepQuote below to change the quote.
+;
+; Requires: xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
+
+AFFECT /qt/qml/xofm/modules/sleepscreen/qml/tatsu/sleep-window-opaque.qml
+    TRAVERSE BaseView#root > InputBlocker:contentItem
+
+        ; above the stock logo/illustration, below the contact details
+        LOCATE BEFORE ColumnLayout
+        INSERT {
+            Rectangle {
+                id: qmSleep
+                anchors.fill: parent
+                color: "white"
+
+                readonly property string qmSleepQuote: "per aspera ad astra"
+                readonly property string mono: "Noto Sans Mono"
+                readonly property var shades: ["#ffffff", "#d4d4d4", "#a0a0a0", "#5a5a5a", "#000000"]
+                // keep clear of the right-edge contact strip (case closed)
+                // and the bottom contact lines (case open)
+                readonly property int sideMargin: 200
+
+                property int todaySecs: 0
+                property var week: []
+                property string dateText: ""
+
+                function pad(n) { return n < 10 ? "0" + n : "" + n; }
+                function fmt(secs) {
+                    var m = Math.round((secs || 0) / 60);
+                    if (m < 60) return m + "m";
+                    return Math.floor(m / 60) + "h " + pad(m % 60) + "m";
+                }
+                function level(secs) {
+                    var m = (secs || 0) / 60;
+                    if (m < 1) return 0;
+                    if (m < 30) return 1;
+                    if (m < 60) return 2;
+                    if (m < 120) return 3;
+                    return 4;
+                }
+                function keyOf(ms) {
+                    var d = new Date(ms);
+                    return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate());
+                }
+
+                function load() {
+                    // synchronous read: the screen is drawn once, right now
+                    var text = "";
+                    try {
+                        var x = new XMLHttpRequest();
+                        x.open("GET", "file:///home/root/.local/share/qmarkable/index.txt", false);
+                        x.send();
+                        text = x.responseText || "";
+                    } catch (e) {
+                        text = "";
+                    }
+                    var tot = {};
+                    var off = -new Date().getTimezoneOffset();
+                    var lines = text.split("\n");
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i];
+                        if (line.indexOf("#") === 0) {
+                            var at = line.indexOf("tzoff=");
+                            if (at >= 0) off = parseInt(line.substring(at + 6), 10);
+                            continue;
+                        }
+                        var p = line.split(" ");
+                        if (p.length >= 2 && p[0].length === 10) tot[p[0]] = parseInt(p[1], 10);
+                    }
+                    var local = new Date(Date.now() + off * 60000);
+                    var mid = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+                    var names = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+                    var w = [];
+                    for (var d = 6; d >= 0; d--) {
+                        var ms = mid - d * 86400000;
+                        var k = keyOf(ms);
+                        w.push({ letter: names[new Date(ms).getUTCDay()].charAt(0), secs: tot[k] || 0, today: d === 0 });
+                    }
+                    week = w;
+                    todaySecs = tot[keyOf(mid)] || 0;
+                    dateText = keyOf(mid) + "  " + names[local.getUTCDay()];
+                }
+
+                Component.onCompleted: load()
+                onVisibleChanged: { if (visible) load(); }
+
+                Column {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: -60
+                    width: parent.width - 2 * qmSleep.sideMargin
+                    spacing: 0
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: qmSleep.qmSleepQuote
+                        font.family: "EB Garamond"
+                        font.italic: true
+                        font.pixelSize: 96
+                        color: "black"
+                    }
+
+                    Item { width: 1; height: 72 }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: qmSleep.dateText
+                        font.family: qmSleep.mono
+                        font.pixelSize: 26
+                        color: "#8c8c8c"
+                    }
+
+                    Item { width: 1; height: 14 }
+
+                    Text {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "today  " + qmSleep.fmt(qmSleep.todaySecs)
+                        font.family: qmSleep.mono
+                        font.pixelSize: 40
+                        font.bold: true
+                        color: "black"
+                    }
+
+                    Item { width: 1; height: 44 }
+
+                    // last 7 days, ending today
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 14
+                        Repeater {
+                            model: qmSleep.week
+                            delegate: Column {
+                                spacing: 10
+                                Rectangle {
+                                    width: 56
+                                    height: 56
+                                    color: qmSleep.shades[qmSleep.level(modelData.secs)]
+                                    border.width: qmSleep.level(modelData.secs) === 0 ? 1 : 0
+                                    border.color: "#b4b4b4"
+                                    Rectangle {
+                                        // today: small inner square, as on the homepage
+                                        visible: modelData.today
+                                        anchors.centerIn: parent
+                                        width: 14
+                                        height: 14
+                                        color: qmSleep.level(modelData.secs) >= 3 ? "white" : "black"
+                                    }
+                                }
+                                Text {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    text: modelData.letter
+                                    font.family: qmSleep.mono
+                                    font.pixelSize: 22
+                                    color: "#8c8c8c"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        ; our layer replaces the stock "reMarkable is sleeping" fallback,
+        ; which would otherwise cover everything when no logo image loads
+        TRAVERSE Rectangle#errorPlaceholder
+            REPLACE visible WITH {
+                visible: false
+            }
+        END TRAVERSE
+
+    END TRAVERSE
+END AFFECT
