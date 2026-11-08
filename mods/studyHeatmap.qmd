@@ -60,7 +60,7 @@ SLOT qmHomeWidgets
 
             readonly property string dataDir: "file:///home/root/.local/share/qmarkable/"
             readonly property int gap: 5
-            readonly property int labelW: 76
+            readonly property int labelW: 0
             readonly property double dayMsLen: 86400000
             readonly property var shades: ["#ffffff", "#d4d4d4", "#a0a0a0", "#5a5a5a", "#000000"]
             readonly property var monthNames: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -87,7 +87,7 @@ SLOT qmHomeWidgets
             readonly property int colsPerBand: Math.max(julCol + 1, weeks - julCol)
             readonly property int cell: Math.max(8, Math.floor((width - labelW - (colsPerBand - 1) * gap) / colsPerBand))
             readonly property int step: cell + gap
-            readonly property int monthH: 44
+            readonly property int monthH: 40
             readonly property int bandH: monthH + 7 * step
             readonly property int bandGap: 28
 
@@ -98,11 +98,6 @@ SLOT qmHomeWidgets
             property int selTotal: 0
             property int selHour: -1
             property int gapSecs: 15
-            readonly property int yearTotal: {
-                var t = 0, pre = "" + year + "-";
-                for (var k in totals) if (k.indexOf(pre) === 0) t += totals[k];
-                return t;
-            }
 
             function pad(n) { return n < 10 ? "0" + n : "" + n; }
             function keyOf(ms) {
@@ -262,33 +257,15 @@ SLOT qmHomeWidgets
             }
             Component.onCompleted: reload()
 
-            // ================= 01 TODAY =================
-            Item {
-                width: parent.width
-                height: 30
-                Text {
-                    id: qmSec1
-                    anchors.verticalCenter: parent.verticalCenter
-                    textFormat: Text.StyledText
-                    text: "<font color='#8c8c8c'>// 01</font>&nbsp;&nbsp;TODAY"
-                    font.family: qmHome.mono
-                    font.pixelSize: 22
-                    font.bold: true
-                    font.letterSpacing: 4
-                    color: "black"
-                }
-                Rectangle {
-                    anchors.left: qmSec1.right
-                    anchors.leftMargin: 20
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 1
-                    color: "black"
-                }
-            }
-
+            // ---- today ----
             Column {
-                spacing: 6
+                spacing: 0
+                Text {
+                    text: "today"
+                    color: "#8c8c8c"
+                    font.family: qmHome.mono
+                    font.pixelSize: 24
+                }
                 Text {
                     text: qmHeat.fmt(qmHeat.totals[qmHeat.todayKey] || 0)
                     color: "black"
@@ -297,72 +274,42 @@ SLOT qmHomeWidgets
                     font.bold: true
                     font.letterSpacing: -2
                 }
-                Text {
-                    text: "writing time · pen contact + pauses ≤" + qmHeat.gapSecs + "s"
-                    color: "#555555"
-                    font.family: qmHome.mono
-                    font.pixelSize: 22
-                }
             }
 
-            // ================= 02 ACTIVITY =================
+            Item { width: 1; height: 24 }
+
+            // ---- year:  2026            <  > ----
             Item {
                 width: parent.width
-                height: 64
+                height: 56
                 Text {
-                    id: qmSec2
+                    anchors.left: parent.left
                     anchors.verticalCenter: parent.verticalCenter
-                    textFormat: Text.StyledText
-                    text: "<font color='#8c8c8c'>// 02</font>&nbsp;&nbsp;ACTIVITY"
+                    text: qmHeat.year > 0 ? "" + qmHeat.year : ""
                     font.family: qmHome.mono
-                    font.pixelSize: 22
+                    font.pixelSize: 36
                     font.bold: true
-                    font.letterSpacing: 4
                     color: "black"
                 }
-                Rectangle {
-                    anchors.left: qmSec2.right
-                    anchors.leftMargin: 20
-                    anchors.right: qmYearNav.left
-                    anchors.rightMargin: 20
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 1
-                    color: "black"
-                }
-                // [<] 2026 [>]   (swiping the grid sideways does the same)
                 Row {
-                    id: qmYearNav
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-                    Rectangle {
-                        width: 64; height: 64
-                        border.width: 2; border.color: "black"
-                        color: qmYearPrevArea.pressed ? "black" : "white"
-                        opacity: qmHeat.year > qmHeat.minYear ? 1 : 0.25
-                        Text { anchors.centerIn: parent; text: "<"; font.family: qmHome.mono; font.pixelSize: 30; font.bold: true; color: qmYearPrevArea.pressed ? "white" : "black" }
-                        MouseArea { id: qmYearPrevArea; anchors.fill: parent; anchors.margins: -10; onClicked: qmHeat.setYear(qmHeat.year - 1) }
+                    spacing: 48
+                    Text {
+                        text: "<"
+                        font.family: qmHome.mono
+                        font.pixelSize: 36
+                        font.bold: true
+                        color: qmHeat.year > qmHeat.minYear ? "black" : "#d4d4d4"
+                        MouseArea { anchors.fill: parent; anchors.margins: -22; onClicked: qmHeat.setYear(qmHeat.year - 1) }
                     }
-                    Rectangle {
-                        width: 132; height: 64
-                        color: "black"
-                        Text {
-                            anchors.centerIn: parent
-                            text: qmHeat.year > 0 ? "" + qmHeat.year : "----"
-                            font.family: qmHome.mono
-                            font.pixelSize: 32
-                            font.bold: true
-                            font.letterSpacing: 2
-                            color: "white"
-                        }
-                    }
-                    Rectangle {
-                        width: 64; height: 64
-                        border.width: 2; border.color: "black"
-                        color: qmYearNextArea.pressed ? "black" : "white"
-                        opacity: qmHeat.year < qmHeat.maxYear ? 1 : 0.25
-                        Text { anchors.centerIn: parent; text: ">"; font.family: qmHome.mono; font.pixelSize: 30; font.bold: true; color: qmYearNextArea.pressed ? "white" : "black" }
-                        MouseArea { id: qmYearNextArea; anchors.fill: parent; anchors.margins: -10; onClicked: qmHeat.setYear(qmHeat.year + 1) }
+                    Text {
+                        text: ">"
+                        font.family: qmHome.mono
+                        font.pixelSize: 36
+                        font.bold: true
+                        color: qmHeat.year < qmHeat.maxYear ? "black" : "#d4d4d4"
+                        MouseArea { anchors.fill: parent; anchors.margins: -22; onClicked: qmHeat.setYear(qmHeat.year + 1) }
                     }
                 }
             }
@@ -380,28 +327,11 @@ SLOT qmHomeWidgets
                         readonly property int col: Math.floor((Math.round((firstMs - qmHeat.jan1Ms) / qmHeat.dayMsLen) + qmHeat.jan1Dow) / 7)
                         readonly property int band: index < 6 ? 0 : 1
                         x: qmHeat.labelW + (band === 0 ? col : col - qmHeat.julCol) * qmHeat.step
-                        y: band * (qmHeat.bandH + qmHeat.bandGap) + 4
-                        text: qmHeat.monthNames[index].toUpperCase()
-                        color: "#333333"
+                        y: band * (qmHeat.bandH + qmHeat.bandGap) + 6
+                        text: qmHeat.monthNames[index].toLowerCase()
+                        color: "#8c8c8c"
                         font.family: qmHome.mono
                         font.pixelSize: 20
-                        font.letterSpacing: 2
-                    }
-                }
-
-                // weekday labels
-                Repeater {
-                    model: 6
-                    delegate: Text {
-                        readonly property int row: [1, 3, 5][index % 3]
-                        readonly property int band: Math.floor(index / 3)
-                        x: 0
-                        y: band * (qmHeat.bandH + qmHeat.bandGap) + qmHeat.monthH + row * qmHeat.step + (qmHeat.cell - height) / 2
-                        text: ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][row]
-                        color: "#333333"
-                        font.family: qmHome.mono
-                        font.pixelSize: 20
-                        font.letterSpacing: 1
                     }
                 }
 
@@ -427,23 +357,21 @@ SLOT qmHomeWidgets
                             height: qmHeat.cell
                             color: future ? "white" : qmHeat.shades[lvl]
                             border.width: (future || lvl === 0) ? 1 : 0
-                            border.color: future ? "#e0e0e0" : "#8c8c8c"
+                            border.color: future ? "#ebebeb" : "#b4b4b4"
 
-                            // selection: square bracket-style frame outside the cell
                             Rectangle {
                                 visible: parent.selected
                                 anchors.fill: parent
-                                anchors.margins: -Math.ceil(qmHeat.gap / 2) - 2
+                                anchors.margins: -Math.ceil(qmHeat.gap / 2) - 1
                                 color: "transparent"
                                 border.width: 3
                                 border.color: "black"
                                 z: 2
                             }
-                            // today: small inner square
                             Rectangle {
                                 visible: parent.key === qmHeat.todayKey && !parent.selected
                                 anchors.centerIn: parent
-                                width: Math.max(4, Math.round(qmHeat.cell / 3))
+                                width: Math.max(4, Math.round(qmHeat.cell / 4))
                                 height: width
                                 color: parent.lvl >= 3 ? "white" : "black"
                             }
@@ -486,306 +414,188 @@ SLOT qmHomeWidgets
                 }
             }
 
-            // legend + year total
-            Item {
-                width: parent.width
-                height: 28
-                Text {
-                    anchors.left: parent.left
-                    anchors.leftMargin: qmHeat.labelW
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "Σ " + qmHeat.year + " = " + qmHeat.fmt(qmHeat.yearTotal)
-                    font.family: qmHome.mono
-                    font.pixelSize: 20
-                    color: "#333333"
-                }
-                Row {
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 8
-                    Text { text: "0"; font.family: qmHome.mono; font.pixelSize: 20; color: "#333333"; anchors.verticalCenter: parent.verticalCenter }
-                    Repeater {
-                        model: 5
-                        delegate: Rectangle {
-                            width: 24; height: 24
-                            color: qmHeat.shades[index]
-                            border.width: index === 0 ? 1 : 0
-                            border.color: "#8c8c8c"
-                        }
+            // legend
+            Row {
+                anchors.right: parent.right
+                spacing: 6
+                Text { text: "less "; font.family: qmHome.mono; font.pixelSize: 18; color: "#8c8c8c"; anchors.verticalCenter: parent.verticalCenter }
+                Repeater {
+                    model: 5
+                    delegate: Rectangle {
+                        width: 18; height: 18
+                        color: qmHeat.shades[index]
+                        border.width: index === 0 ? 1 : 0
+                        border.color: "#b4b4b4"
                     }
-                    Text { text: "2h+"; font.family: qmHome.mono; font.pixelSize: 20; color: "#333333"; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: "   [<30m|<1h|<2h|2h+]"; font.family: qmHome.mono; font.pixelSize: 18; color: "#8c8c8c"; anchors.verticalCenter: parent.verticalCenter }
                 }
+                Text { text: " more"; font.family: qmHome.mono; font.pixelSize: 18; color: "#8c8c8c"; anchors.verticalCenter: parent.verticalCenter }
             }
 
-            // ================= 03 LOG (selected day) =================
-            Item {
-                visible: qmHeat.selKey !== ""
-                width: parent.width
-                height: 30
-                Text {
-                    id: qmSec3
-                    anchors.verticalCenter: parent.verticalCenter
-                    textFormat: Text.StyledText
-                    text: "<font color='#8c8c8c'>// 03</font>&nbsp;&nbsp;LOG"
-                    font.family: qmHome.mono
-                    font.pixelSize: 22
-                    font.bold: true
-                    font.letterSpacing: 4
-                    color: "black"
-                }
-                Rectangle {
-                    anchors.left: qmSec3.right
-                    anchors.leftMargin: 20
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    height: 1
-                    color: "black"
-                }
-            }
+            Item { width: 1; height: 16 }
 
-            Rectangle {
+            // ---- selected day ----
+            Column {
                 id: qmDetail
                 visible: qmHeat.selKey !== ""
                 width: parent.width
-                height: qmDetailCol.height + 2 * 28
-                radius: 0
-                color: "white"
-                border.width: 2
-                border.color: "black"
+                spacing: 28
 
-                Column {
-                    id: qmDetailCol
-                    x: 28
-                    y: 28
-                    width: parent.width - 56
-                    spacing: 26
-
-                    // header:  > 2026-11-08 SUN          [<][>][-]
-                    Item {
-                        width: parent.width
-                        height: 72
-                        Column {
-                            id: qmDayTitle
-                            anchors.left: parent.left
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
-                            Text {
-                                text: qmHeat.selKey === "" ? "" : "> " + qmHeat.selKey + "  " + ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][new Date(qmHeat.msOf(qmHeat.selKey)).getUTCDay()]
-                                font.family: qmHome.mono
-                                font.pixelSize: 32
-                                font.bold: true
-                                color: "black"
-                            }
-                            Text {
-                                text: "  " + qmHeat.fmt(qmHeat.selTotal) + (qmHeat.selKey === qmHeat.todayKey ? "  ·  TODAY" : "")
-                                font.family: qmHome.mono
-                                font.pixelSize: 24
-                                color: "#555555"
-                            }
+                Item {
+                    width: parent.width
+                    height: qmDayTitle.height
+                    Column {
+                        id: qmDayTitle
+                        spacing: 2
+                        Text {
+                            text: qmHeat.selKey === "" ? "" : qmHeat.selKey + "  " + ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][new Date(qmHeat.msOf(qmHeat.selKey)).getUTCDay()]
+                            font.family: qmHome.mono
+                            font.pixelSize: 30
+                            font.bold: true
+                            color: "black"
                         }
-                        MouseArea { anchors.fill: qmDayTitle; onClicked: qmHeat.detailOpen = !qmHeat.detailOpen }
-                        Row {
-                            anchors.right: parent.right
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 12
-                            Repeater {
-                                model: ["<", ">", "-"]
-                                delegate: Rectangle {
-                                    readonly property bool dim: (index === 1 && qmHeat.selKey === qmHeat.todayKey)
-                                    width: 64; height: 64
-                                    border.width: 2; border.color: "black"
-                                    color: qmBtnArea.pressed ? "black" : "white"
-                                    opacity: dim ? 0.25 : 1
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: index === 2 ? (qmHeat.detailOpen ? "−" : "+") : modelData
-                                        font.family: qmHome.mono
-                                        font.pixelSize: 30
-                                        font.bold: true
-                                        color: qmBtnArea.pressed ? "white" : "black"
-                                    }
-                                    MouseArea {
-                                        id: qmBtnArea
-                                        anchors.fill: parent
-                                        anchors.margins: -6
-                                        onClicked: {
-                                            if (index === 0) qmHeat.step(-1);
-                                            else if (index === 1) qmHeat.step(1);
-                                            else qmHeat.detailOpen = !qmHeat.detailOpen;
-                                        }
+                        Text {
+                            text: qmHeat.fmt(qmHeat.selTotal)
+                            font.family: qmHome.mono
+                            font.pixelSize: 24
+                            color: "#8c8c8c"
+                        }
+                    }
+                    MouseArea { anchors.fill: qmDayTitle; onClicked: qmHeat.detailOpen = !qmHeat.detailOpen }
+                    Row {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        spacing: 48
+                        Repeater {
+                            model: 3
+                            delegate: Text {
+                                text: index === 0 ? "<" : (index === 1 ? ">" : (qmHeat.detailOpen ? "−" : "+"))
+                                font.family: qmHome.mono
+                                font.pixelSize: 36
+                                font.bold: true
+                                color: (index === 1 && qmHeat.selKey === qmHeat.todayKey) ? "#d4d4d4" : "black"
+                                MouseArea {
+                                    anchors.fill: parent
+                                    anchors.margins: -22
+                                    onClicked: {
+                                        if (index === 0) qmHeat.step(-1);
+                                        else if (index === 1) qmHeat.step(1);
+                                        else qmHeat.detailOpen = !qmHeat.detailOpen;
                                     }
                                 }
                             }
                         }
                     }
+                }
 
-                    // body
-                    Column {
-                        visible: qmHeat.detailOpen
+                Column {
+                    visible: qmHeat.detailOpen
+                    width: parent.width
+                    spacing: 36
+
+                    Text {
+                        visible: qmHeat.selTotal <= 0
+                        text: "nothing recorded"
+                        font.family: qmHome.mono
+                        font.pixelSize: 24
+                        color: "#8c8c8c"
+                    }
+
+                    // hourly bars
+                    Item {
+                        id: qmChart
+                        visible: qmHeat.selTotal > 0
                         width: parent.width
-                        spacing: 22
-
-                        Rectangle { width: parent.width; height: 1; color: "#8c8c8c" }
+                        height: 300
+                        readonly property int axisH: 36
+                        readonly property int capH: 36
+                        readonly property int plotTop: capH
+                        readonly property int plotH: height - axisH - plotTop
+                        readonly property real slot: width / 24
+                        readonly property int maxSecs: {
+                            var m = 0;
+                            for (var i = 0; i < qmHeat.selHours.length; i++) m = Math.max(m, qmHeat.selHours[i]);
+                            return Math.max(m, 60);
+                        }
 
                         Text {
-                            visible: qmHeat.selTotal <= 0
-                            text: "-- no writing recorded --"
+                            visible: qmHeat.selHour >= 0
+                            x: Math.max(0, Math.min(qmChart.width - width, qmHeat.selHour * qmChart.slot + qmChart.slot / 2 - width / 2))
+                            y: 0
+                            text: qmHeat.selHour < 0 ? "" : qmHeat.pad(qmHeat.selHour) + ":00  " + qmHeat.fmt(qmHeat.selHours[qmHeat.selHour] || 0)
                             font.family: qmHome.mono
-                            font.pixelSize: 24
-                            color: "#555555"
+                            font.pixelSize: 22
+                            color: "black"
                         }
-
-                        // hourly bar chart
-                        Item {
-                            id: qmChart
-                            visible: qmHeat.selTotal > 0
-                            width: parent.width
-                            height: 340
-                            readonly property int axisH: 40
-                            readonly property int capH: 40
-                            readonly property int plotTop: capH + 10
-                            readonly property int plotH: height - axisH - plotTop
-                            readonly property real slot: width / 24
-                            readonly property int maxSecs: {
-                                var m = 0;
-                                for (var i = 0; i < qmHeat.selHours.length; i++) m = Math.max(m, qmHeat.selHours[i]);
-                                return Math.max(m, 60);
+                        Rectangle {
+                            x: 0
+                            y: qmChart.plotTop + qmChart.plotH
+                            width: qmChart.width
+                            height: 1
+                            color: "black"
+                        }
+                        Repeater {
+                            model: 24
+                            delegate: Item {
+                                x: index * qmChart.slot
+                                y: qmChart.plotTop
+                                width: qmChart.slot
+                                height: qmChart.plotH
+                                readonly property int secs: qmHeat.selHours.length === 24 ? qmHeat.selHours[index] : 0
+                                Rectangle {
+                                    anchors.bottom: parent.bottom
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    width: Math.max(4, parent.width - 14)
+                                    height: parent.secs > 0 ? Math.max(3, parent.height * parent.secs / qmChart.maxSecs) : 0
+                                    color: qmHeat.selHour === index || qmHeat.selHour < 0 ? "black" : "#b4b4b4"
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: qmHeat.selHour = (qmHeat.selHour === index ? -1 : index)
+                                }
                             }
-                            readonly property int peakHour: {
-                                var best = -1, m = -1;
-                                for (var i = 0; i < qmHeat.selHours.length; i++) if (qmHeat.selHours[i] > m) { m = qmHeat.selHours[i]; best = i; }
-                                return best;
-                            }
-
-                            Text {
-                                x: 0; y: 0
-                                text: qmHeat.selHour < 0
-                                      ? "HOURLY   peak " + qmHeat.pad(qmChart.peakHour) + ":00 = " + qmHeat.fmt(qmChart.maxSecs) + "   (tap a bar)"
-                                      : "HOURLY   " + qmHeat.pad(qmHeat.selHour) + ":00-" + qmHeat.pad((qmHeat.selHour + 1) % 24) + ":00 = " + qmHeat.fmt(qmHeat.selHours[qmHeat.selHour] || 0)
+                        }
+                        Repeater {
+                            model: [0, 6, 12, 18]
+                            delegate: Text {
+                                x: modelData * qmChart.slot + (qmChart.slot - width) / 2
+                                y: qmChart.plotTop + qmChart.plotH + 8
+                                text: qmHeat.pad(modelData)
                                 font.family: qmHome.mono
-                                font.pixelSize: 22
-                                color: "#333333"
+                                font.pixelSize: 20
+                                color: "#8c8c8c"
                             }
-                            // light guide lines at 50% / 100%
-                            Repeater {
-                                model: [0.5, 1.0]
-                                delegate: Rectangle {
-                                    x: 0
-                                    y: qmChart.plotTop + qmChart.plotH * (1 - modelData)
-                                    width: qmChart.width
-                                    height: 1
-                                    color: "#d4d4d4"
-                                }
-                            }
-                            // baseline
-                            Rectangle {
-                                x: 0
-                                y: qmChart.plotTop + qmChart.plotH
-                                width: qmChart.width
-                                height: 2
-                                color: "black"
-                            }
-                            Repeater {
-                                model: 24
-                                delegate: Item {
-                                    x: index * qmChart.slot
-                                    y: qmChart.plotTop
-                                    width: qmChart.slot
-                                    height: qmChart.plotH
-                                    readonly property int secs: qmHeat.selHours.length === 24 ? qmHeat.selHours[index] : 0
-                                    Rectangle {
-                                        anchors.bottom: parent.bottom
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        width: Math.max(4, parent.width - 12)
-                                        height: parent.secs > 0 ? Math.max(3, parent.height * parent.secs / qmChart.maxSecs) : 0
-                                        color: qmHeat.selHour === index || qmHeat.selHour < 0 ? "black" : "#a0a0a0"
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        onClicked: qmHeat.selHour = (qmHeat.selHour === index ? -1 : index)
-                                    }
-                                }
-                            }
-                            Repeater {
-                                model: [0, 3, 6, 9, 12, 15, 18, 21]
-                                delegate: Text {
-                                    x: modelData * qmChart.slot + (qmChart.slot - width) / 2
-                                    y: qmChart.plotTop + qmChart.plotH + 8
-                                    text: qmHeat.pad(modelData)
+                        }
+                    }
+
+                    // notebooks
+                    Column {
+                        visible: qmHeat.selDocs.length > 0
+                        width: parent.width
+                        spacing: 14
+                        Repeater {
+                            model: qmHeat.selDocs
+                            delegate: Item {
+                                width: parent.width
+                                height: 40
+                                Text {
+                                    anchors.left: parent.left
+                                    anchors.right: qmDocTime.left
+                                    anchors.rightMargin: 32
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    elide: Text.ElideRight
+                                    text: modelData.name
                                     font.family: qmHome.mono
-                                    font.pixelSize: 20
-                                    color: "#333333"
+                                    font.pixelSize: 26
+                                    color: "black"
                                 }
-                            }
-                        }
-
-                        // per-notebook table with dot leaders
-                        Column {
-                            visible: qmHeat.selDocs.length > 0
-                            width: parent.width
-                            spacing: 10
-                            Text {
-                                text: "NOTEBOOKS"
-                                font.family: qmHome.mono
-                                font.pixelSize: 22
-                                color: "#333333"
-                            }
-                            Repeater {
-                                model: qmHeat.selDocs
-                                delegate: Item {
-                                    width: parent.width
-                                    height: 44
-                                    readonly property int pct: Math.round(100 * modelData.secs / Math.max(1, qmHeat.selTotal))
-                                    Text {
-                                        id: qmDocName
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: Math.min(implicitWidth, parent.width - 300)
-                                        elide: Text.ElideRight
-                                        text: modelData.name
-                                        font.family: qmHome.mono
-                                        font.pixelSize: 26
-                                        color: "black"
-                                    }
-                                    Item {
-                                        anchors.left: qmDocName.right
-                                        anchors.leftMargin: 12
-                                        anchors.right: qmDocTime.left
-                                        anchors.rightMargin: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: 30
-                                        clip: true
-                                        Text {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "................................................................................................"
-                                            font.family: qmHome.mono
-                                            font.pixelSize: 26
-                                            color: "#a0a0a0"
-                                        }
-                                    }
-                                    Text {
-                                        id: qmDocTime
-                                        anchors.right: qmDocPct.left
-                                        anchors.rightMargin: 16
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: qmHeat.fmt(modelData.secs)
-                                        font.family: qmHome.mono
-                                        font.pixelSize: 26
-                                        font.bold: true
-                                        color: "black"
-                                    }
-                                    Text {
-                                        id: qmDocPct
-                                        anchors.right: parent.right
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        width: 80
-                                        horizontalAlignment: Text.AlignRight
-                                        text: parent.pct + "%"
-                                        font.family: qmHome.mono
-                                        font.pixelSize: 24
-                                        color: "#555555"
-                                    }
+                                Text {
+                                    id: qmDocTime
+                                    anchors.right: parent.right
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: qmHeat.fmt(modelData.secs)
+                                    font.family: qmHome.mono
+                                    font.pixelSize: 26
+                                    color: "#8c8c8c"
                                 }
                             }
                         }
@@ -797,12 +607,13 @@ SLOT qmHomeWidgets
                 visible: qmHeat.loaded && Object.keys(qmHeat.totals).length === 0
                 width: parent.width
                 wrapMode: Text.WordWrap
-                text: "> no data yet. open a notebook and write -- time counts while the pen touches the screen (pauses ≤" + qmHeat.gapSecs + "s included)."
+                text: "no data yet — open a notebook and write."
                 font.family: qmHome.mono
                 font.pixelSize: 24
-                color: "#555555"
+                color: "#8c8c8c"
             }
         }
     }
 END SLOT
+
 

@@ -10,8 +10,8 @@ VERSION 3.28.0.172
 ;       INSERT {
 ;           Item { width: parent.width; height: 200 /* ... */ }
 ;
-; Style: square corners, 2px black rules, font.family: qmHome.mono,
-; section labels like "// 02  NAME" in 22px letter-spaced gray caps.
+; Style: minimal. font.family: qmHome.mono, black on white, gray (#8c8c8c)
+; for secondary text, square corners, no boxes or rules unless needed.
 ;       }
 ;   END SLOT
 ;
@@ -78,97 +78,69 @@ AFFECT /qml/device/view/main/MainView.qml
                             x: qmHome.margin
                             y: qmHome.margin
                             width: qmHome.width - qmHome.margin * 2
-                            spacing: 64
+                            spacing: 72
 
-                            Column {
+                            Item {
                                 id: qmHomeHeader
                                 width: parent.width
-                                spacing: 16
+                                height: qmHomeTitle.height
 
                                 function stamp() {
+                                    var days = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
                                     var d = new Date();
-                                    var days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
-                                    // ISO week number
-                                    var t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-                                    var dn = t.getUTCDay() || 7;
-                                    t.setUTCDate(t.getUTCDate() + 4 - dn);
-                                    var wk = Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
-                                    return Qt.formatDate(d, "yyyy-MM-dd") + "  " + days[d.getDay()] + "  W" + (wk < 10 ? "0" : "") + wk;
+                                    return Qt.formatDate(d, "yyyy-MM-dd") + "  " + days[d.getDay()];
                                 }
 
-                                Item {
-                                    width: parent.width
-                                    height: qmHomeTitle.height
-
-                                    Column {
-                                        id: qmHomeTitle
-                                        anchors.left: parent.left
-                                        spacing: 4
-                                        Text {
-                                            text: "QMARKABLE"
-                                            color: "#555555"
-                                            font.family: qmHome.mono
-                                            font.pixelSize: 22
-                                            font.letterSpacing: 6
-                                        }
-                                        Text {
-                                            text: "~/home"
-                                            color: "black"
-                                            font.family: qmHome.mono
-                                            font.pixelSize: 64
-                                            font.bold: true
+                                Column {
+                                    id: qmHomeTitle
+                                    spacing: 6
+                                    Text {
+                                        text: "~/home"
+                                        color: "black"
+                                        font.family: qmHome.mono
+                                        font.pixelSize: 56
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        id: qmHomeDate
+                                        color: "#8c8c8c"
+                                        font.family: qmHome.mono
+                                        font.pixelSize: 24
+                                        text: qmHomeHeader.stamp()
+                                        Connections {
+                                            target: qmHome
+                                            function onVisibleChanged() {
+                                                if (qmHome.visible)
+                                                    qmHomeDate.text = qmHomeHeader.stamp();
+                                            }
                                         }
                                     }
-
-                                    Rectangle {
-                                        id: qmHomeClose
-                                        anchors.right: parent.right
-                                        anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: 6
-                                        width: qmHomeCloseText.implicitWidth + 48
-                                        height: 76
-                                        radius: 0
-                                        color: qmHomeCloseArea.pressed ? "black" : "white"
-                                        border.width: 2
-                                        border.color: "black"
-                                        Text {
-                                            id: qmHomeCloseText
-                                            anchors.centerIn: parent
-                                            text: "STUDY →"
-                                            font.family: qmHome.mono
-                                            font.pixelSize: 28
-                                            font.bold: true
-                                            font.letterSpacing: 2
-                                            color: qmHomeCloseArea.pressed ? "white" : "black"
-                                        }
-                                        MouseArea {
-                                            id: qmHomeCloseArea
-                                            anchors.fill: parent
-                                            anchors.margins: -16
-                                            onClicked: qmHome.close()
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    width: parent.width
-                                    height: 2
-                                    color: "black"
                                 }
 
                                 Text {
-                                    id: qmHomeDate
-                                    color: "#555555"
+                                    id: qmHomeClose
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.topMargin: 14
+                                    text: "study →"
                                     font.family: qmHome.mono
-                                    font.pixelSize: 24
-                                    font.letterSpacing: 1
-                                    text: qmHomeHeader.stamp()
-                                    Connections {
-                                        target: qmHome
-                                        function onVisibleChanged() {
-                                            if (qmHome.visible)
-                                                qmHomeDate.text = qmHomeHeader.stamp();
-                                        }
+                                    font.pixelSize: 30
+                                    font.bold: true
+                                    color: "black"
+                                    Rectangle {
+                                        // underline doubles as press feedback
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.bottom
+                                        anchors.topMargin: 4
+                                        height: qmHomeCloseArea.pressed ? 6 : 2
+                                        color: "black"
+                                    }
+                                    MouseArea {
+                                        id: qmHomeCloseArea
+                                        anchors.fill: parent
+                                        anchors.margins: -24
+                                        onClicked: qmHome.close()
                                     }
                                 }
                             }
