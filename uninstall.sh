@@ -3,6 +3,9 @@
 # PURGE=1 is set (it lives in /home/root/.local/share/qmarkable).
 set -euo pipefail
 HOST="${1:-remarkable}"
+SSH_OPTS=(-o ConnectTimeout=8 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
+ssh() { command ssh "${SSH_OPTS[@]}" "$@"; }
+scp() { command scp "${SSH_OPTS[@]}" "$@"; }
 cd "$(dirname "$0")"
 QMDS=$(for f in mods/*.qmd; do printf ' /home/root/xovi/exthome/qt-resource-rebuilder/%s' "$(basename "$f")"; done)
 ssh "$HOST" "rm -f $QMDS"

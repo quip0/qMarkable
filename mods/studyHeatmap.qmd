@@ -1,13 +1,13 @@
 VERSION 3.28.0.172
 ; Study heatmap widget for qMarkable Home.
-;  - Today's writing total
-;  - GitHub-style year grid in 5 gray shades (by active writing minutes)
+;  - Today's notebook time
+;  - GitHub-style year grid in 5 gray shades (minutes spent in notebooks)
 ;  - One calendar year (Jan–Jun / Jul–Dec); swipe the grid sideways to change year
 ;  - Tap a day to pick it; a collapsible panel shows
 ;    that day's hourly bar chart and per-notebook totals
 ;
-; Data comes from qmarkable-trackerd (see tracker/). This file also tells the
-; tracker which document is open by writing /run/qmarkable/current-doc
+; Data comes from qmarkable-trackerd (see tracker/). This file tells the
+; tracker when a notebook is on screen by writing /run/qmarkable/current-doc
 ; (tmpfs: RAM only, no flash writes).
 ;
 ; Requires: qmarkableHome.qmd, xovi + qt-resource-rebuilder. Firmware 3.28.0.172.
@@ -20,31 +20,32 @@ AFFECT /qml/device/view/main/MainView.qml
                 id: qmDocMarker
                 visible: false
 
+                // Bindings re-evaluate whenever any input changes. Time counts
+                // only while a *notebook* is on screen: awake, not covered by
+                // the homepage, not locked. PDFs and ebooks are not counted.
+                readonly property var doc: documentView.item ? documentView.item.document : null
+                readonly property bool counting: !!doc
+                    && doc.fileType === Document.FileType.Notebook
+                    && BatteryManager.displayState === BatteryManager.Normal
+                    && root.qmHomeVisible !== true
+                    && !root.passcodeHandler.userLocked
+                readonly property string payload: counting
+                    ? ("" + doc.id) + "\n" + ("" + (doc.visibleName || "")).split("\n").join(" ") + "\n"
+                    : "\n"   // "not counting"; an empty PUT body would create no file
+
                 function write(text) {
                     var x = new XMLHttpRequest();
                     x.open("PUT", "file:///run/qmarkable/current-doc");
                     x.send(text);
                 }
-                function update() {
-                    var d = documentView.item ? documentView.item.document : null;
-                    if (d && documentView.item.documentLoaded) {
-                        var name = ("" + (d.visibleName || "")).split("\n").join(" ");
-                        write(d.id + "\n" + name + "\n");
-                    } else {
-                        write("\n"); // "no document"; an empty PUT body creates no file
-                    }
-                }
 
+                onPayloadChanged: {
+                    write(payload);
+                    console.log("[qmarkable] counting: " + (counting ? doc.id : "no"));
+                }
                 Component.onCompleted: {
-                    write("\n");
+                    write(payload);
                     console.log("[qmarkable] study tracker marker ready");
-                }
-
-                Connections {
-                    target: documentView.item
-                    function onDocumentChanged() { qmDocMarker.update(); }
-                    function onDocumentLoadedChanged() { qmDocMarker.update(); }
-                    function onDocumentClosed() { qmDocMarker.write("\n"); }
                 }
             }
         }
@@ -97,7 +98,6 @@ SLOT qmHomeWidgets
             property var selDocs: []
             property int selTotal: 0
             property int selHour: -1
-            property int gapSecs: 15
 
             function pad(n) { return n < 10 ? "0" + n : "" + n; }
             function keyOf(ms) {
@@ -156,8 +156,6 @@ SLOT qmHomeWidgets
                         if (line.indexOf("#") === 0) {
                             var at = line.indexOf("tzoff=");
                             if (at >= 0) off = parseInt(line.substring(at + 6), 10);
-                            var g = line.indexOf("gap=");
-                            if (g >= 0) qmHeat.gapSecs = parseInt(line.substring(g + 4), 10) || 15;
                             continue;
                         }
                         var parts = line.split(" ");

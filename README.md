@@ -7,24 +7,24 @@ UI mods for the reMarkable Paper Pure (firmware **3.28.0.172**), built on
 
 | Part | File | What it does |
 |---|---|---|
-| Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "Study ›" closes it (to My Files); the calendar button in the My Files dock reopens it. Hides the stock Connect calendar dock button. Other mods add widgets through the `qmHomeWidgets` slot. |
-| Study heatmap | `mods/studyHeatmap.qmd` | Today's writing total; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or ‹ year ›) to change year; tap a day for a collapsible panel with an hourly bar chart and per-notebook totals (‹ › step by day). |
-| Tracker | `tracker/qmarkable-trackerd.c` | Small background program that measures writing time from the pen digitizer. |
+| Homepage | `mods/qmarkableHome.qmd` | Full-screen **Home** page shown when xochitl starts (boot / `~/xovi/start`), not after sleep. "study →" closes it (to My Files); the calendar button in the My Files dock reopens it. Hides the stock Connect calendar dock button. Other mods add widgets through the `qmHomeWidgets` slot. |
+| Study heatmap | `mods/studyHeatmap.qmd` | Today's notebook time; one calendar year (Jan–Jun over Jul–Dec) in 5 gray levels, swipe the grid sideways (or `<` `>`) to change year; tap a day for a collapsible view with an hourly bar chart and per-notebook totals. |
+| Tracker | `tracker/qmarkable-trackerd.c` | Tiny background program that records time spent in notebooks. |
 
-### How writing time is measured
+### How study time is measured
 
-- The tracker reads the pen device (`/dev/input/event2`) **passively**: it
-  doesn't grab it, so xochitl gets every event as normal.
-- A kernel event filter (`EVIOCSMASK`) means it is only woken on pen down / pen
-  up. Position and pressure updates never reach it, and it does nothing at all
-  while the pen is idle. It uses about 200 KB of RAM.
-- Time only counts while a notebook/document is open. The UI writes the open
-  document to `/run/qmarkable/current-doc` (RAM-backed, no flash writes).
-- **Active time** (what the heatmap shows) = pen contact plus pauses of up to
-  `gap` seconds (default 15) between strokes. Raw contact time is stored too.
-- Data is saved at most once per minute, and only when something changed:
+- Time counts while a **notebook** is open on screen: the tablet is awake, the
+  Home page isn't covering it, and it isn't locked. PDFs and ebooks don't count.
+- The UI writes the active notebook (or "none") to `/run/qmarkable/current-doc`
+  whenever that changes. This file is RAM-backed, so there are no flash writes.
+- The tracker sleeps on an inotify watch of that file. It wakes only when it
+  changes (a few times per session), plus one checkpoint every 5 minutes while
+  a session runs. It doesn't read the pen or any input device.
+- Session length uses a clock that stops during suspend, so sleep time is never
+  counted, even if a sleep transition were missed.
+- Data is saved when a session ends and at each checkpoint:
   - `/home/root/.local/share/qmarkable/index.txt`: daily totals
-  - `/home/root/.local/share/qmarkable/days/YYYY-MM-DD.txt`: hourly buckets and per-document totals
+  - `/home/root/.local/share/qmarkable/days/YYYY-MM-DD.txt`: seconds per hour and per notebook
 - Hours and days follow the tablet's system timezone (`/etc/localtime`), and
   the tracker notices when it changes. You can override it with `tz=` in the config.
 
@@ -105,9 +105,9 @@ Preview the homepage offscreen with sample data (needs a built
 WORK=~/qmarkable-work QMLDIFF=/path/to/qmldiff tools/preview/preview.sh
 ```
 
-Tracker test mode, which feeds synthetic pen events without touching real data:
+Tracker test mode, which replays synthetic sessions without touching real data:
 
 ```sh
-printf '1794268790 1\n1794268795 0\n' | \
-  QMARKABLE_DATADIR=/tmp/t QMARKABLE_DOCFILE=/tmp/doc ~/qmarkable/qmarkable-trackerd --replay
+printf '1794268200 open nb-1 Calculus\n1794269100 close\n' | \
+  QMARKABLE_DATADIR=/tmp/t ~/qmarkable/qmarkable-trackerd --replay
 ```

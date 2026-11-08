@@ -4,6 +4,9 @@
 #   NO_RESTART=1 ./install.sh      copy files only; don't run ~/xovi/start
 set -euo pipefail
 HOST="${1:-remarkable}"
+SSH_OPTS=(-o ConnectTimeout=8 -o ServerAliveInterval=5 -o ServerAliveCountMax=3)
+ssh() { command ssh "${SSH_OPTS[@]}" "$@"; }
+scp() { command scp "${SSH_OPTS[@]}" "$@"; }
 cd "$(dirname "$0")"
 
 make -s tracker
